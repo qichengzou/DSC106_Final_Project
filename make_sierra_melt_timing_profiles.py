@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """
-Build monthly Sierra Nevada snow profiles from CMIP6 Zarr stores.
+Build monthly Sierra Nevada melt-timing profiles from CMIP6 Zarr stores.
 
-Note: CMIP6 variable `snw` (table LImon) is monthly surface snow amount in the
-land model, not a direct observational April 1 snow-water-equivalent (SWE) product.
-We use it here as a proxy for the seasonal snowpack / melt-timing curve shown in
-the scrollytelling visualization.
+We use total runoff (`mrro`, table Lmon) rather than snow amount (`snw`, LImon):
+  - `snw` peaks in winter when snow accumulates (amount story)
+  - `mrro` peaks when water leaves the basin (timing / melt-runoff story)
+
+Monthly runoff is averaged over the Sierra box, then normalized so the
+historical scenario's peak month equals 100 (column `snw_index` for the viz).
 """
 
 from __future__ import annotations
@@ -23,8 +25,8 @@ CATALOG_URL = (
     "cmip6-zarr-consolidated-stores.csv"
 )
 
-VARIABLE_ID = "snw"
-TABLE_ID = "LImon"
+VARIABLE_ID = "mrro"
+TABLE_ID = "Lmon"
 SCENARIOS = ["historical", "ssp245", "ssp585"]
 MAX_MODELS_PER_SCENARIO = 5
 
@@ -90,7 +92,7 @@ def _lon_bounds(lon: xr.DataArray) -> tuple[float, float]:
 
 
 def subset_sierra(ds: xr.Dataset) -> xr.DataArray:
-    """Subset `snw` to the Sierra Nevada bounding box."""
+    """Subset the target variable to the Sierra Nevada bounding box."""
     if VARIABLE_ID not in ds:
         raise KeyError(f"Variable {VARIABLE_ID!r} not found in dataset.")
 
@@ -98,28 +100,49 @@ def subset_sierra(ds: xr.Dataset) -> xr.DataArray:
     lon = ds[lon_name]
     lon_low, lon_high = _lon_bounds(lon)
 
-    snw = ds[VARIABLE_ID].sel(
+    return ds[VARIABLE_ID].sel(
         {
             lat_name: coord_slice(ds[lat_name], LAT_MIN, LAT_MAX),
             lon_name: coord_slice(lon, lon_low, lon_high),
         }
     )
-    return snw
 
 
-def regional_mean_ts(snw: xr.DataArray) -> xr.DataArray:
+def regional_mean_ts(field: xr.DataArray) -> xr.DataArray:
     """Area-weighted regional mean using cos(latitude) weights."""
-    lat_name, lon_name = _lat_lon_names(snw)
-    weights = np.cos(np.deg2rad(snw[lat_name]))
-    weighted = snw.weighted(weights)
+    lat_name, lon_name = _lat_lon_names(field)
+    weights = np.cos(np.deg2rad(field[lat_name]))
+    weighted = field.weighted(weights)
     return weighted.mean(dim=(lat_name, lon_name))
+
+
+def select_time_period(ts: xr.DataArray, start: str, end: str) -> xr.DataArray:
+    """
+    Subset by calendar year/month.
+
+    Avoids np.datetime64 slicing, which breaks on cftime calendars (e.g. noleap).
+    """
+    start_pd = pd.Timestamp(start)
+    end_pd = pd.Timestamp(end)
+
+    year = ts.time.dt.year
+    month = ts.time.dt.month
+
+    after_start = (year > start_pd.year) | (
+        (year == start_pd.year) & (month >= start_pd.month)
+    )
+    before_end = (year < end_pd.year) | (
+        (year == end_pd.year) & (month <= end_pd.month)
+    )
+    subset = ts.isel(time=after_start & before_end)
+    if subset.sizes.get("time", 0) == 0:
+        raise ValueError(f"No timesteps found between {start} and {end}.")
+    return subset
 
 
 def monthly_climatology(ts: xr.DataArray, start: str, end: str) -> xr.DataArray:
     """Mean seasonal cycle (months 1–12) over the selected period."""
-    subset = ts.sel(time=slice(np.datetime64(start), np.datetime64(end)))
-    if subset.sizes.get("time", 0) == 0:
-        raise ValueError(f"No timesteps found between {start} and {end}.")
+    subset = select_time_period(ts, start, end)
     return subset.groupby("time.month").mean("time")
 
 
@@ -133,7 +156,7 @@ def load_scenario_monthly_profile(
 
     Returns
     -------
-    model_df : DataFrame with columns source_id, scenario, month, snw
+    model_df : DataFrame with columns source_id, scenario, month, mrro
     used_models : list of source_id values successfully loaded
     failures : list of human-readable failure messages
     """
@@ -171,8 +194,8 @@ def load_scenario_monthly_profile(
                 consolidated=True,
                 storage_options={"token": "anon"},
             )
-            snw_region = subset_sierra(ds)
-            ts = regional_mean_ts(snw_region)
+            region = subset_sierra(ds)
+            ts = regional_mean_ts(region)
             monthly = monthly_climatology(ts, start, end)
 
             for month in range(1, 13):
@@ -181,7 +204,7 @@ def load_scenario_monthly_profile(
                         "source_id": source_id,
                         "scenario": scenario,
                         "month": month,
-                        "snw": float(monthly.sel(month=month).values),
+                        "mrro": float(monthly.sel(month=month).values),
                     }
                 )
             used_models.append(source_id)
@@ -203,7 +226,7 @@ def summarize_scenario(model_df: pd.DataFrame, scenario: str) -> pd.DataFrame:
     """Aggregate model-level monthly profiles to scenario-level statistics."""
     subset = model_df.loc[model_df["scenario"] == scenario]
     summary = (
-        subset.groupby("month")["snw"]
+        subset.groupby("month")["mrro"]
         .agg(mean="mean", median="median", model_count="count")
         .reset_index()
     )
@@ -215,7 +238,7 @@ def add_snw_index(summary: pd.DataFrame) -> pd.DataFrame:
     """
     Normalize to historical maximum monthly mean = 100.
 
-    snw_index = mean / historical_max_mean * 100
+    Column kept as `snw_index` for compatibility with main.js.
     """
     hist = summary.loc[summary["scenario"] == "historical"]
     if hist.empty:
@@ -230,13 +253,27 @@ def add_snw_index(summary: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def print_snw_table_ids(catalog: pd.DataFrame) -> None:
-    """Print available table_id values for variable snw."""
-    snw_rows = catalog.loc[catalog["variable_id"] == VARIABLE_ID]
-    table_ids = sorted(snw_rows["table_id"].dropna().unique().tolist())
+def print_peak_months(summary: pd.DataFrame) -> None:
+    """Log which calendar month each scenario peaks (timing check)."""
+    month_names = [
+        "", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ]
+    print("\nPeak runoff month by scenario (from ensemble mean):")
+    for scenario in SCENARIOS:
+        sub = summary.loc[summary["scenario"] == scenario]
+        peak_month = int(sub.loc[sub["mean"].idxmax(), "month"])
+        peak_val = float(sub["mean"].max())
+        print(f"  {scenario}: {month_names[peak_month]} (mean mrro={peak_val:.6g})")
+
+
+def print_variable_table_ids(catalog: pd.DataFrame) -> None:
+    """Print available table_id values for the target variable."""
+    var_rows = catalog.loc[catalog["variable_id"] == VARIABLE_ID]
+    table_ids = sorted(var_rows["table_id"].dropna().unique().tolist())
     print(f"\nAvailable table_id values for {VARIABLE_ID!r}:")
     for table_id in table_ids:
-        count = int((snw_rows["table_id"] == table_id).sum())
+        count = int((var_rows["table_id"] == table_id).sum())
         print(f"  - {table_id}: {count} catalog rows")
 
 
@@ -247,7 +284,7 @@ def main() -> int:
     catalog = pd.read_csv(CATALOG_URL)
     print(f"Catalog rows: {len(catalog):,}")
 
-    print_snw_table_ids(catalog)
+    print_variable_table_ids(catalog)
 
     gcs = gcsfs.GCSFileSystem(token="anon")
 
@@ -275,7 +312,7 @@ def main() -> int:
             print("  Models failed: none")
 
     model_level = pd.concat(all_model_frames, ignore_index=True)
-    model_level = model_level[["source_id", "scenario", "month", "snw"]]
+    model_level = model_level[["source_id", "scenario", "month", "mrro"]]
     model_level.to_csv(MODEL_LEVEL_CSV, index=False)
     print(f"\nSaved model-level debug CSV:\n  {MODEL_LEVEL_CSV.resolve()}")
 
@@ -286,6 +323,8 @@ def main() -> int:
         ["scenario", "month", "mean", "median", "model_count", "snw_index"]
     ]
     summary.to_csv(SUMMARY_CSV, index=False)
+
+    print_peak_months(summary)
 
     hist_max = summary.loc[summary["scenario"] == "historical", "mean"].max()
     print(f"\nHistorical max monthly mean (normalization reference): {hist_max:.6g}")
