@@ -9,6 +9,9 @@ const demand = [8, 7, 10, 15, 38, 70, 100, 97, 62, 28, 10, 7];
 let historical;
 let projected;
 
+// Tooltip metadata lookup: "${scenario}-${month}" -> { mean_kgm2, model_count }
+let metadataByKey = {};
+
 function profileFromCsv(rows, scenario) {
   const values = rows
     .filter((d) => d.scenario === scenario)
@@ -50,7 +53,18 @@ async function loadSnowProfiles() {
     scenario: (d.scenario || "").trim(),
     month: +d.month,
     snw_index: +d.snw_index,
+    mean_kgm2: +d.mean,           // raw mrro flux (kg m^-2 s^-1)
+    model_count: +d.model_count,
   }));
+
+  // Build the tooltip metadata lookup (additive; chart arrays unchanged).
+  metadataByKey = {};
+  rows.forEach((d) => {
+    metadataByKey[`${d.scenario}-${d.month}`] = {
+      mean_kgm2: d.mean_kgm2,
+      model_count: d.model_count,
+    };
+  });
 
   const hist = profileFromCsv(rows, "historical");
   const proj = profileFromCsv(rows, PROJECTED_SCENARIO);
@@ -142,6 +156,9 @@ gapAnnotation.append("text").attr("class","gap-label")
   .attr("dy","0.35em")
   .text("Winter runoff → summer demand");
 
+// Hover hit targets — appended last so they sit on top of paths & annotations
+const tooltipTargets = root.append("g").attr("class","tooltip-targets");
+
 function placePeakLabel(textSel, px, py, iW) {
   const nearLeft = px < iW * 0.22;
   const nearRight = px > iW * 0.78;
@@ -165,6 +182,127 @@ function placePeakLabel(textSel, px, py, iW) {
       .attr("dy", "-10px")
       .attr("text-anchor", "middle");
   }
+}
+
+// ---- Tooltip (hover interaction) ----
+const MONTH_FULL = ["JANUARY","FEBRUARY","MARCH","APRIL","MAY","JUNE",
+  "JULY","AUGUST","SEPTEMBER","OCTOBER","NOVEMBER","DECEMBER"];
+const DAYS_IN_MONTH = [31,28,31,30,31,30,31,31,30,31,30,31];
+const SECONDS_PER_DAY = 86400;
+
+// mrro is a flux (kg m^-2 s^-1); multiply by the month's seconds to get a
+// monthly runoff depth in mm (1 kg/m^2 = 1 mm of water).
+function fluxToMonthlyMm(flux, monthIdx) {
+  return flux * DAYS_IN_MONTH[monthIdx] * SECONDS_PER_DAY;
+}
+
+function demandPhase(monthIdx) {
+  if ([10,11,0,1,2,3].includes(monthIdx)) return "Low — winter dormancy";
+  if ([4,5].includes(monthIdx)) return "Rising — growing season begins";
+  if ([6,7].includes(monthIdx)) return "Near peak — agricultural draw";
+  return "Tapering — late season"; // Sep, Oct
+}
+
+function metaFor(series, monthIdx) {
+  const scenario = series === "historical" ? "historical"
+    : series === "projected" ? PROJECTED_SCENARIO
+    : null;
+  if (!scenario) return null;
+  return metadataByKey[`${scenario}-${monthIdx + 1}`] || null;
+}
+
+// Only show a tooltip for a series the chart is currently displaying.
+function isSeriesVisible(series) {
+  if (series === "demand") return true;
+  const className = series === "historical" ? "hist-line" : "proj-line";
+  const path = svg.select(`.${className}`);
+  if (path.empty()) return false;
+  return +path.attr("opacity") > 0.1;
+}
+
+function tooltipHtml(series, monthIdx) {
+  const month = MONTH_FULL[monthIdx];
+
+  if (series === "demand") {
+    return `
+      <div class="tt-eyebrow"><span class="tt-month">${month}</span> · WATER DEMAND</div>
+      <div class="tt-primary">${demandPhase(monthIdx)}</div>
+      <div class="tt-footer">
+        <div class="tt-footer-line">Illustrative</div>
+        <div class="tt-footer-line">Not from CMIP6</div>
+      </div>`;
+  }
+
+  const meta = metaFor(series, monthIdx);
+  const mm = meta
+    ? Math.max(0, Math.round(fluxToMonthlyMm(meta.mean_kgm2, monthIdx)))
+    : null;
+  const mmLine = mm !== null ? `<div class="tt-primary">${mm} mm</div>` : "";
+
+  if (series === "historical") {
+    const pct = Math.round(Math.max(0, historical[monthIdx]));
+    const count = meta
+      ? (meta.model_count === 1 ? "1 model" : `${meta.model_count}-model ensemble mean`)
+      : "";
+    return `
+      <div class="tt-eyebrow"><span class="tt-month">${month}</span> · SNOWMELT RUNOFF</div>
+      ${mmLine}
+      <div class="tt-secondary">${pct}% of annual maximum</div>
+      <div class="tt-footer">
+        <div class="tt-footer-line">Historical · 1970–2000</div>
+        <div class="tt-footer-line">${count}</div>
+      </div>`;
+  }
+
+  // projected (SSP5-8.5)
+  const pct = Math.round(Math.max(0, projected[monthIdx]));
+  const count = meta
+    ? (meta.model_count === 1 ? "1 model: IPSL-CM6A-LR" : `${meta.model_count}-model ensemble mean`)
+    : "";
+  return `
+    <div class="tt-eyebrow"><span class="tt-month">${month}</span> · PROJECTED · SSP5-8.5</div>
+    ${mmLine}
+    <div class="tt-secondary">${pct}% of historical maximum</div>
+    <div class="tt-footer">
+      <div class="tt-footer-line">2050–2075</div>
+      <div class="tt-footer-line">${count}</div>
+    </div>`;
+}
+
+function positionTooltip(event) {
+  const tt = document.getElementById("chart-tooltip");
+  if (!tt) return;
+  const rect = tt.getBoundingClientRect();
+  const pad = 12;
+  let x = event.clientX + pad;
+  let y = event.clientY - rect.height - pad;
+  // right-edge collision -> flip to left of cursor
+  if (x + rect.width > window.innerWidth - 8) {
+    x = event.clientX - rect.width - pad;
+  }
+  // top-edge collision -> flip below cursor
+  if (y < 8) {
+    y = event.clientY + pad;
+  }
+  tt.style.left = `${x}px`;
+  tt.style.top = `${y}px`;
+}
+
+function showTooltip(event, series, monthIdx) {
+  const tt = document.getElementById("chart-tooltip");
+  if (!tt) return;
+  tt.innerHTML = tooltipHtml(series, monthIdx);
+  tt.setAttribute("data-series", series);
+  tt.setAttribute("aria-hidden", "false");
+  tt.classList.add("visible");
+  positionTooltip(event);
+}
+
+function hideTooltip() {
+  const tt = document.getElementById("chart-tooltip");
+  if (!tt) return;
+  tt.classList.remove("visible");
+  tt.setAttribute("aria-hidden", "true");
 }
 
 // Draw/update chart
@@ -232,6 +370,34 @@ function draw() {
       .attr("stroke","var(--red)")
       .attr("stroke-width",2.5);
   }
+
+  // Hover hit targets — one transparent circle per (series, month) point.
+  // Projected is appended first (beneath) so the always-visible demand and
+  // historical targets win where points overlap.
+  const targetData = [];
+  if (projected) projected.forEach((v, i) =>
+    targetData.push({ series: "projected", month: i, cx: x(MONTHS[i]), cy: y(v) }));
+  demand.forEach((v, i) =>
+    targetData.push({ series: "demand", month: i, cx: x(MONTHS[i]), cy: y(Math.max(0, v)) }));
+  if (historical) historical.forEach((v, i) =>
+    targetData.push({ series: "historical", month: i, cx: x(MONTHS[i]), cy: y(v) }));
+
+  tooltipTargets.selectAll("circle")
+    .data(targetData)
+    .join("circle")
+    .attr("cx", (d) => d.cx)
+    .attr("cy", (d) => d.cy)
+    .attr("r", 14)
+    .attr("fill", "transparent")
+    .attr("stroke", "none")
+    .attr("data-series", (d) => d.series)
+    .attr("data-month", (d) => d.month)
+    .on("mouseenter", (event, d) => {
+      if (!isSeriesVisible(d.series)) return;
+      showTooltip(event, d.series, d.month);
+    })
+    .on("mousemove", (event) => positionTooltip(event))
+    .on("mouseleave", hideTooltip);
 
   if (!historical || !projected) return;
 
