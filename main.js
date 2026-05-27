@@ -70,7 +70,7 @@ async function loadSnowProfiles() {
 const svg   = d3.select("#chart-svg");
 const W     = () => svg.node().getBoundingClientRect().width;
 const H     = () => svg.node().getBoundingClientRect().height;
-const MARGIN = { top: 24, right: 24, bottom: 40, left: 44 };
+const MARGIN = { top: 28, right: 24, bottom: 40, left: 56 };
 
 const x = d3.scalePoint().domain(MONTHS).padding(0.1);
 const y = d3.scaleLinear().domain([0, 110]).nice();
@@ -100,9 +100,6 @@ const yAxisG = root.append("g").attr("class","y-axis");
 const demandAreaPath = root.append("path").attr("class","demand-area");
 const demandLinePath = root.append("path").attr("class","demand-line");
 
-const gapRect = root.append("rect").attr("class","gap-rect")
-  .attr("fill","rgba(224,90,74,0.14)").attr("opacity",0);
-
 const histAreaPath = root.append("path").attr("class","hist-area");
 const histLinePath = root.append("path").attr("class","hist-line");
 
@@ -118,7 +115,7 @@ histPeak.append("text").attr("class","peak-label")
   .attr("fill","var(--blue)")
   .attr("font-family","'IBM Plex Mono',monospace")
   .attr("font-size","10px")
-  .text("Historical runoff peak");
+  .text("Hist. runoff peak");
 
 const projPeak = root.append("g").attr("class","peak-proj").attr("opacity",0);
 projPeak.append("line").attr("stroke","var(--red)").attr("stroke-width",1)
@@ -127,27 +124,56 @@ projPeak.append("text").attr("class","peak-label")
   .attr("fill","var(--red)")
   .attr("font-family","'IBM Plex Mono',monospace")
   .attr("font-size","10px")
-  .text("Projected runoff peak");
+  .text("Proj. runoff peak");
 
 const gapAnnotation = root.append("g").attr("class","gap-annotation").attr("opacity",0);
 gapAnnotation.append("line")
   .attr("stroke","var(--red)").attr("stroke-width",1.2)
-  .attr("marker-end","url(#arrowR)").attr("marker-start","url(#arrowL)");
+  .attr("marker-end","url(#arrowUp)").attr("marker-start","url(#arrowDown)");
 gapAnnotation.append("text")
   .attr("font-family","'IBM Plex Mono',monospace")
   .attr("font-size","10px").attr("fill","var(--red)")
-  .attr("text-anchor","middle").attr("dy","-6px")
+  .attr("text-anchor","start")
   .text("Winter runoff → summer demand");
 
 const defs = svg.append("defs");
-["arrowR","arrowL"].forEach((id,i) => {
-  defs.append("marker").attr("id",id)
-    .attr("viewBox","0 0 10 10").attr("refX",5).attr("refY",5)
-    .attr("markerWidth",6).attr("markerHeight",6)
-    .attr("orient", i===0 ? "auto" : "auto-start-reverse")
-    .append("path").attr("d","M1 1L9 5L1 9").attr("fill","none")
-    .attr("stroke","var(--red)").attr("stroke-width",1.5);
-});
+defs.append("marker").attr("id","arrowUp")
+  .attr("viewBox","0 0 10 10").attr("refX",5).attr("refY",5)
+  .attr("markerWidth",6).attr("markerHeight",6)
+  .attr("orient","auto")
+  .append("path").attr("d","M1 1L9 5L1 9").attr("fill","none")
+  .attr("stroke","var(--red)").attr("stroke-width",1.5);
+defs.append("marker").attr("id","arrowDown")
+  .attr("viewBox","0 0 10 10").attr("refX",5).attr("refY",5)
+  .attr("markerWidth",6).attr("markerHeight",6)
+  .attr("orient","auto-start-reverse")
+  .append("path").attr("d","M1 1L9 5L1 9").attr("fill","none")
+  .attr("stroke","var(--red)").attr("stroke-width",1.5);
+
+function placePeakLabel(textSel, px, py, iW) {
+  const nearLeft = px < iW * 0.22;
+  const nearRight = px > iW * 0.78;
+
+  if (nearLeft) {
+    textSel
+      .attr("x", px + 8)
+      .attr("y", py)
+      .attr("dy", "-10px")
+      .attr("text-anchor", "start");
+  } else if (nearRight) {
+    textSel
+      .attr("x", px - 8)
+      .attr("y", py)
+      .attr("dy", "-10px")
+      .attr("text-anchor", "end");
+  } else {
+    textSel
+      .attr("x", px)
+      .attr("y", py)
+      .attr("dy", "-10px")
+      .attr("text-anchor", "middle");
+  }
+}
 
 // Draw/update chart
 function draw() {
@@ -234,44 +260,33 @@ function draw() {
     .attr("x1",ppx).attr("x2",ppx)
     .attr("y1",projY).attr("y2",iH);
 
+  placePeakLabel(histPeak.select("text"), hpx, histY, iW);
+  const projText = projPeak.select("text");
+  placePeakLabel(projText, ppx, projY, iW);
   if (peaksClose) {
-    // Peaks are adjacent months — fan labels outward and stagger vertically
-    histPeak.select("text")
-      .attr("x", hpx + 6)
-      .attr("y", histY)
-      .attr("dy", "-10px")
-      .attr("text-anchor", "start");
-    projPeak.select("text")
-      .attr("x", ppx - 6)
-      .attr("y", projY)
-      .attr("dy", "-28px")
-      .attr("text-anchor", "end");
-  } else {
-    histPeak.select("text")
-      .attr("x", hpx)
-      .attr("y", histY)
-      .attr("dy", "-8px")
-      .attr("text-anchor", "middle");
-    projPeak.select("text")
-      .attr("x", ppx)
-      .attr("y", projY)
-      .attr("dy", "-8px")
-      .attr("text-anchor", "middle");
+    const dy = parseFloat(projText.attr("dy")) || -10;
+    projText.attr("dy", `${dy - 16}px`);
   }
 
-  const arrowY = iH * 0.55;
-  gapAnnotation.select("line")
-    .attr("x1",ppx+4).attr("x2",hpx-4)
-    .attr("y1",arrowY).attr("y2",arrowY);
-  gapAnnotation.select("text")
-    .attr("x",(ppx+hpx)/2).attr("y",arrowY);
-
   const demandPeakIdx = demand.indexOf(Math.max(...demand));
-  gapRect
-    .attr("x", ppx)
-    .attr("y", 0)
-    .attr("width", x(MONTHS[demandPeakIdx]) - ppx)
-    .attr("height", iH);
+  const runoffPeakIdx = histPeakIdx;
+  const runoffPeakX = x(MONTHS[runoffPeakIdx]);
+  const demandPeakX = x(MONTHS[demandPeakIdx]);
+  const arrowX = (runoffPeakX + demandPeakX) / 2;
+  const midIdx = Math.round((runoffPeakIdx + demandPeakIdx) / 2);
+  const yBottom = y(historical[midIdx]);
+  const yTop = y(demand[midIdx]);
+  const labelX = arrowX + 10 > iW - 4 ? arrowX - 10 : arrowX + 10;
+  const labelAnchor = arrowX + 10 > iW - 4 ? "end" : "start";
+
+  gapAnnotation.select("line")
+    .attr("x1", arrowX).attr("x2", arrowX)
+    .attr("y1", yBottom).attr("y2", yTop);
+  gapAnnotation.select("text")
+    .attr("x", labelX)
+    .attr("y", (yBottom + yTop) / 2)
+    .attr("dy", "0.35em")
+    .attr("text-anchor", labelAnchor);
 }
 
 window.addEventListener("resize", draw);
@@ -293,7 +308,6 @@ const states = {
     projPeak.transition().duration(400).attr("opacity",0);
     histPeak.transition().duration(400).attr("opacity",0);
     gapAnnotation.transition().duration(400).attr("opacity",0);
-    gapRect.transition().duration(400).attr("opacity",0);
     d3.select("#legend-future").style("opacity","0");
   },
   1: () => {
@@ -301,8 +315,7 @@ const states = {
     projLinePath.transition().duration(500).attr("opacity",0);
     projPeak.transition().duration(400).attr("opacity",0);
     histPeak.transition().duration(600).attr("opacity",1);
-    gapAnnotation.transition().duration(400).attr("opacity",0);
-    gapRect.transition().duration(400).attr("opacity",0);
+    gapAnnotation.transition().duration(600).attr("opacity",1);
     d3.select("#legend-future").style("opacity","0");
   },
   2: () => {
@@ -311,7 +324,6 @@ const states = {
     projPeak.transition().duration(600).attr("opacity",1);
     histPeak.transition().duration(600).attr("opacity",1);
     gapAnnotation.transition().duration(800).delay(400).attr("opacity",1);
-    gapRect.transition().duration(700).delay(200).attr("opacity",1);
     d3.select("#legend-future").style("opacity","1");
   },
   3: () => {
@@ -320,7 +332,6 @@ const states = {
     projPeak.transition().duration(400).attr("opacity",1);
     histPeak.transition().duration(400).attr("opacity",1);
     gapAnnotation.transition().duration(400).attr("opacity",1);
-    gapRect.transition().duration(500).attr("opacity",1);
     d3.select("#legend-future").style("opacity","1");
   }
 };

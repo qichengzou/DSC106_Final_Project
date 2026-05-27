@@ -90,6 +90,7 @@ body {
   flex: 1;
   min-height: 280px;
   max-height: 420px;
+  overflow: visible;
 }
 
 #legend {
