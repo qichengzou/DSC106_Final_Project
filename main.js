@@ -13,7 +13,7 @@ function profileFromCsv(rows, scenario) {
   const values = rows
     .filter((d) => d.scenario === scenario)
     .sort((a, b) => d3.ascending(a.month, b.month))
-    .map((d) => d.snw_index);
+    .map((d) => Math.max(0, d.snw_index));
 
   if (values.length !== 12) return null;
   if (values.some((v) => !Number.isFinite(v))) {
@@ -118,7 +118,7 @@ histPeak.append("text").attr("class","peak-label")
   .attr("fill","var(--blue)")
   .attr("font-family","'IBM Plex Mono',monospace")
   .attr("font-size","10px")
-  .text("Historical peak");
+  .text("Historical runoff peak");
 
 const projPeak = root.append("g").attr("class","peak-proj").attr("opacity",0);
 projPeak.append("line").attr("stroke","var(--red)").attr("stroke-width",1)
@@ -127,7 +127,7 @@ projPeak.append("text").attr("class","peak-label")
   .attr("fill","var(--red)")
   .attr("font-family","'IBM Plex Mono',monospace")
   .attr("font-size","10px")
-  .text("Projected peak");
+  .text("Projected runoff peak");
 
 const gapAnnotation = root.append("g").attr("class","gap-annotation").attr("opacity",0);
 gapAnnotation.append("line")
@@ -137,7 +137,7 @@ gapAnnotation.append("text")
   .attr("font-family","'IBM Plex Mono',monospace")
   .attr("font-size","10px").attr("fill","var(--red)")
   .attr("text-anchor","middle").attr("dy","-6px")
-  .text("~6–8 week gap");
+  .text("Winter runoff → summer demand");
 
 const defs = svg.append("defs");
 ["arrowR","arrowL"].forEach((id,i) => {

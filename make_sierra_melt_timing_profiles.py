@@ -2,12 +2,13 @@
 """
 Build monthly Sierra Nevada melt-timing profiles from CMIP6 Zarr stores.
 
-We use total runoff (`mrro`, table Lmon) rather than snow amount (`snw`, LImon):
-  - `snw` peaks in winter when snow accumulates (amount story)
-  - `mrro` peaks when water leaves the basin (timing / melt-runoff story)
+We derive a snowmelt-timing curve from monthly snow amount (`snw`, LImon):
+  - `snw` alone peaks in winter (snow on the ground — an *amount* story)
+  - melt proxy = month-to-month snowpack loss: max(0, SNW_prev - SNW_current)
+    This peaks when the pack is declining fastest (*timing* story)
 
-Monthly runoff is averaged over the Sierra box, then normalized so the
-historical scenario's peak month equals 100 (column `snw_index` for the viz).
+Profiles are normalized so the historical scenario's peak month = 100
+(column `snw_index` for main.js).
 """
 
 from __future__ import annotations
@@ -25,12 +26,11 @@ CATALOG_URL = (
     "cmip6-zarr-consolidated-stores.csv"
 )
 
-VARIABLE_ID = "mrro"
-TABLE_ID = "Lmon"
+VARIABLE_ID = "snw"
+TABLE_ID = "LImon"
 SCENARIOS = ["historical", "ssp245", "ssp585"]
 MAX_MODELS_PER_SCENARIO = 5
 
-# Approximate Sierra Nevada bounding box
 LAT_MIN, LAT_MAX = 36.0, 40.0
 LON_MIN, LON_MAX = -121.5, -118.5
 LON_MIN_360, LON_MAX_360 = 238.5, 241.5
@@ -47,7 +47,6 @@ MODEL_LEVEL_CSV = OUTPUT_DIR / "sierra_melt_timing_model_level.csv"
 
 
 def coord_slice(coord: xr.DataArray, low: float, high: float) -> slice:
-    """Return a slice that works whether the coordinate is ascending or descending."""
     values = np.asarray(coord.values, dtype=float)
     if values.size == 0:
         return slice(low, high)
@@ -57,10 +56,6 @@ def coord_slice(coord: xr.DataArray, low: float, high: float) -> slice:
 
 
 def choose_one_store(group: pd.DataFrame) -> pd.Series:
-    """
-    Pick one Zarr store row for a model (source_id).
-    Prefer grid_label == 'gr'; otherwise use the first available row.
-    """
     gr = group.loc[group["grid_label"] == "gr"]
     if not gr.empty:
         return gr.iloc[0]
@@ -84,7 +79,6 @@ def _lat_lon_names(ds: xr.Dataset | xr.DataArray) -> tuple[str, str]:
 
 
 def _lon_bounds(lon: xr.DataArray) -> tuple[float, float]:
-    """Return (low, high) longitude bounds for the Sierra subset."""
     lon_max = float(lon.max())
     if lon_max > 180.0:
         return LON_MIN_360, LON_MAX_360
@@ -92,7 +86,6 @@ def _lon_bounds(lon: xr.DataArray) -> tuple[float, float]:
 
 
 def subset_sierra(ds: xr.Dataset) -> xr.DataArray:
-    """Subset the target variable to the Sierra Nevada bounding box."""
     if VARIABLE_ID not in ds:
         raise KeyError(f"Variable {VARIABLE_ID!r} not found in dataset.")
 
@@ -109,19 +102,12 @@ def subset_sierra(ds: xr.Dataset) -> xr.DataArray:
 
 
 def regional_mean_ts(field: xr.DataArray) -> xr.DataArray:
-    """Area-weighted regional mean using cos(latitude) weights."""
     lat_name, lon_name = _lat_lon_names(field)
     weights = np.cos(np.deg2rad(field[lat_name]))
-    weighted = field.weighted(weights)
-    return weighted.mean(dim=(lat_name, lon_name))
+    return field.weighted(weights).mean(dim=(lat_name, lon_name))
 
 
 def select_time_period(ts: xr.DataArray, start: str, end: str) -> xr.DataArray:
-    """
-    Subset by calendar year/month.
-
-    Avoids np.datetime64 slicing, which breaks on cftime calendars (e.g. noleap).
-    """
     start_pd = pd.Timestamp(start)
     end_pd = pd.Timestamp(end)
 
@@ -141,9 +127,28 @@ def select_time_period(ts: xr.DataArray, start: str, end: str) -> xr.DataArray:
 
 
 def monthly_climatology(ts: xr.DataArray, start: str, end: str) -> xr.DataArray:
-    """Mean seasonal cycle (months 1–12) over the selected period."""
     subset = select_time_period(ts, start, end)
     return subset.groupby("time.month").mean("time")
+
+
+def snowmelt_from_snowpack(monthly_snw: np.ndarray) -> np.ndarray:
+    """
+    Monthly melt proxy from snowpack decline (kg m-2 per month).
+
+    melt[m] = max(0, SNW_{m-1} - SNW_m) on the climatological cycle.
+    """
+    melt = np.zeros(12, dtype=float)
+    for i in range(12):
+        prev_i = (i - 1) % 12
+        melt[i] = max(0.0, float(monthly_snw[prev_i]) - float(monthly_snw[i]))
+    return melt
+
+
+def monthly_snw_array(monthly: xr.DataArray) -> np.ndarray:
+    return np.array(
+        [float(monthly.sel(month=m).values) for m in range(1, 13)],
+        dtype=float,
+    )
 
 
 def load_scenario_monthly_profile(
@@ -151,15 +156,6 @@ def load_scenario_monthly_profile(
     gcs: gcsfs.GCSFileSystem,
     scenario: str,
 ) -> tuple[pd.DataFrame, list[str], list[str]]:
-    """
-    Load up to MAX_MODELS_PER_SCENARIO models for one scenario.
-
-    Returns
-    -------
-    model_df : DataFrame with columns source_id, scenario, month, mrro
-    used_models : list of source_id values successfully loaded
-    failures : list of human-readable failure messages
-    """
     mask = (
         (catalog["variable_id"] == VARIABLE_ID)
         & (catalog["table_id"] == TABLE_ID)
@@ -197,6 +193,8 @@ def load_scenario_monthly_profile(
             region = subset_sierra(ds)
             ts = regional_mean_ts(region)
             monthly = monthly_climatology(ts, start, end)
+            snw_cycle = monthly_snw_array(monthly)
+            melt_cycle = snowmelt_from_snowpack(snw_cycle)
 
             for month in range(1, 13):
                 rows.append(
@@ -204,13 +202,14 @@ def load_scenario_monthly_profile(
                         "source_id": source_id,
                         "scenario": scenario,
                         "month": month,
-                        "mrro": float(monthly.sel(month=month).values),
+                        "snw": float(snw_cycle[month - 1]),
+                        "melt": float(melt_cycle[month - 1]),
                     }
                 )
             used_models.append(source_id)
             if hasattr(ds, "close"):
                 ds.close()
-        except Exception as exc:  # noqa: BLE001 — collect and continue per model
+        except Exception as exc:  # noqa: BLE001
             failures.append(f"{source_id}: {type(exc).__name__}: {exc}")
 
     if not rows:
@@ -223,10 +222,9 @@ def load_scenario_monthly_profile(
 
 
 def summarize_scenario(model_df: pd.DataFrame, scenario: str) -> pd.DataFrame:
-    """Aggregate model-level monthly profiles to scenario-level statistics."""
     subset = model_df.loc[model_df["scenario"] == scenario]
     summary = (
-        subset.groupby("month")["mrro"]
+        subset.groupby("month")["melt"]
         .agg(mean="mean", median="median", model_count="count")
         .reset_index()
     )
@@ -235,18 +233,13 @@ def summarize_scenario(model_df: pd.DataFrame, scenario: str) -> pd.DataFrame:
 
 
 def add_snw_index(summary: pd.DataFrame) -> pd.DataFrame:
-    """
-    Normalize to historical maximum monthly mean = 100.
-
-    Column kept as `snw_index` for compatibility with main.js.
-    """
     hist = summary.loc[summary["scenario"] == "historical"]
     if hist.empty:
         raise RuntimeError("Historical scenario missing; cannot compute snw_index.")
 
     historical_max_mean = float(hist["mean"].max())
     if historical_max_mean == 0:
-        raise RuntimeError("Historical max mean is zero; cannot normalize snw_index.")
+        raise RuntimeError("Historical max melt is zero; cannot normalize snw_index.")
 
     out = summary.copy()
     out["snw_index"] = out["mean"] / historical_max_mean * 100.0
@@ -254,21 +247,22 @@ def add_snw_index(summary: pd.DataFrame) -> pd.DataFrame:
 
 
 def print_peak_months(summary: pd.DataFrame) -> None:
-    """Log which calendar month each scenario peaks (timing check)."""
     month_names = [
         "", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
         "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
     ]
-    print("\nPeak runoff month by scenario (from ensemble mean):")
+    print("\nPeak melt month by scenario (ensemble mean melt proxy):")
     for scenario in SCENARIOS:
         sub = summary.loc[summary["scenario"] == scenario]
-        peak_month = int(sub.loc[sub["mean"].idxmax(), "month"])
-        peak_val = float(sub["mean"].max())
-        print(f"  {scenario}: {month_names[peak_month]} (mean mrro={peak_val:.6g})")
+        peak_row = sub.loc[sub["mean"].idxmax()]
+        peak_month = int(peak_row["month"])
+        print(
+            f"  {scenario}: {month_names[peak_month]} "
+            f"(mean melt={float(peak_row['mean']):.6g}, snw_index={float(peak_row['snw_index']):.1f})"
+        )
 
 
 def print_variable_table_ids(catalog: pd.DataFrame) -> None:
-    """Print available table_id values for the target variable."""
     var_rows = catalog.loc[catalog["variable_id"] == VARIABLE_ID]
     table_ids = sorted(var_rows["table_id"].dropna().unique().tolist())
     print(f"\nAvailable table_id values for {VARIABLE_ID!r}:")
@@ -289,8 +283,6 @@ def main() -> int:
     gcs = gcsfs.GCSFileSystem(token="anon")
 
     all_model_frames: list[pd.DataFrame] = []
-    all_failures: dict[str, list[str]] = {}
-    models_used: dict[str, list[str]] = {}
 
     for scenario in SCENARIOS:
         print(f"\n=== Scenario: {scenario} ===")
@@ -300,8 +292,6 @@ def main() -> int:
             catalog, gcs, scenario
         )
         all_model_frames.append(model_df)
-        models_used[scenario] = used
-        all_failures[scenario] = failures
 
         print(f"  Models used ({len(used)}): {', '.join(used)}")
         if failures:
@@ -312,7 +302,6 @@ def main() -> int:
             print("  Models failed: none")
 
     model_level = pd.concat(all_model_frames, ignore_index=True)
-    model_level = model_level[["source_id", "scenario", "month", "mrro"]]
     model_level.to_csv(MODEL_LEVEL_CSV, index=False)
     print(f"\nSaved model-level debug CSV:\n  {MODEL_LEVEL_CSV.resolve()}")
 
@@ -327,7 +316,7 @@ def main() -> int:
     print_peak_months(summary)
 
     hist_max = summary.loc[summary["scenario"] == "historical", "mean"].max()
-    print(f"\nHistorical max monthly mean (normalization reference): {hist_max:.6g}")
+    print(f"\nHistorical max monthly melt (normalization reference): {hist_max:.6g}")
     print(f"Saved scenario summary CSV:\n  {SUMMARY_CSV.resolve()}")
 
     print("\nDone.")
