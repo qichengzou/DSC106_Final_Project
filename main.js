@@ -97,6 +97,10 @@ const gridG = root.append("g").attr("class","grid");
 const xAxisG = root.append("g").attr("class","x-axis");
 const yAxisG = root.append("g").attr("class","y-axis");
 
+const gapBand = root.append("g").attr("class","gap-band-layer").attr("opacity",0);
+gapBand.append("rect").attr("class","gap-band")
+  .attr("fill","rgba(224,90,74,0.14)");
+
 const demandAreaPath = root.append("path").attr("class","demand-area");
 const demandLinePath = root.append("path").attr("class","demand-line");
 
@@ -127,28 +131,16 @@ projPeak.append("text").attr("class","peak-label")
   .text("Proj. runoff peak");
 
 const gapAnnotation = root.append("g").attr("class","gap-annotation").attr("opacity",0);
-gapAnnotation.append("line")
-  .attr("stroke","var(--red)").attr("stroke-width",1.2)
-  .attr("marker-end","url(#arrowUp)").attr("marker-start","url(#arrowDown)");
-gapAnnotation.append("text")
+gapAnnotation.append("line").attr("class","gap-h-proj")
+  .attr("stroke","var(--red)").attr("stroke-width",1.2);
+gapAnnotation.append("line").attr("class","gap-h-demand")
+  .attr("stroke","var(--demand)").attr("stroke-width",1.2);
+gapAnnotation.append("text").attr("class","gap-label")
   .attr("font-family","'IBM Plex Mono',monospace")
   .attr("font-size","10px").attr("fill","var(--red)")
-  .attr("text-anchor","start")
+  .attr("text-anchor","middle")
+  .attr("dy","0.35em")
   .text("Winter runoff → summer demand");
-
-const defs = svg.append("defs");
-defs.append("marker").attr("id","arrowUp")
-  .attr("viewBox","0 0 10 10").attr("refX",5).attr("refY",5)
-  .attr("markerWidth",6).attr("markerHeight",6)
-  .attr("orient","auto")
-  .append("path").attr("d","M1 1L9 5L1 9").attr("fill","none")
-  .attr("stroke","var(--red)").attr("stroke-width",1.5);
-defs.append("marker").attr("id","arrowDown")
-  .attr("viewBox","0 0 10 10").attr("refX",5).attr("refY",5)
-  .attr("markerWidth",6).attr("markerHeight",6)
-  .attr("orient","auto-start-reverse")
-  .append("path").attr("d","M1 1L9 5L1 9").attr("fill","none")
-  .attr("stroke","var(--red)").attr("stroke-width",1.5);
 
 function placePeakLabel(textSel, px, py, iW) {
   const nearLeft = px < iW * 0.22;
@@ -269,24 +261,30 @@ function draw() {
   }
 
   const demandPeakIdx = demand.indexOf(Math.max(...demand));
-  const runoffPeakIdx = histPeakIdx;
-  const runoffPeakX = x(MONTHS[runoffPeakIdx]);
   const demandPeakX = x(MONTHS[demandPeakIdx]);
-  const arrowX = (runoffPeakX + demandPeakX) / 2;
-  const midIdx = Math.round((runoffPeakIdx + demandPeakIdx) / 2);
-  const yBottom = y(historical[midIdx]);
-  const yTop = y(demand[midIdx]);
-  const labelX = arrowX + 10 > iW - 4 ? arrowX - 10 : arrowX + 10;
-  const labelAnchor = arrowX + 10 > iW - 4 ? "end" : "start";
+  const yDemandPeak = y(demand[demandPeakIdx]);
+  const x0 = Math.min(ppx, demandPeakX);
+  const x1 = Math.max(ppx, demandPeakX);
+  const yTop = Math.min(projY, yDemandPeak);
+  const bandHeight = Math.abs(yDemandPeak - projY);
 
-  gapAnnotation.select("line")
-    .attr("x1", arrowX).attr("x2", arrowX)
-    .attr("y1", yBottom).attr("y2", yTop);
-  gapAnnotation.select("text")
-    .attr("x", labelX)
-    .attr("y", (yBottom + yTop) / 2)
-    .attr("dy", "0.35em")
-    .attr("text-anchor", labelAnchor);
+  gapBand.select(".gap-band")
+    .attr("x", x0)
+    .attr("y", yTop)
+    .attr("width", Math.max(x1 - x0, 1))
+    .attr("height", Math.max(bandHeight, 1));
+
+  gapAnnotation.select(".gap-h-proj")
+    .attr("x1", x0).attr("x2", x1)
+    .attr("y1", projY).attr("y2", projY);
+
+  gapAnnotation.select(".gap-h-demand")
+    .attr("x1", x0).attr("x2", x1)
+    .attr("y1", yDemandPeak).attr("y2", yDemandPeak);
+
+  gapAnnotation.select(".gap-label")
+    .attr("x", (x0 + x1) / 2)
+    .attr("y", yTop + bandHeight / 2);
 }
 
 window.addEventListener("resize", draw);
@@ -307,6 +305,7 @@ const states = {
     projLinePath.transition().duration(500).attr("opacity",0);
     projPeak.transition().duration(400).attr("opacity",0);
     histPeak.transition().duration(400).attr("opacity",0);
+    gapBand.transition().duration(400).attr("opacity",0);
     gapAnnotation.transition().duration(400).attr("opacity",0);
     d3.select("#legend-future").style("opacity","0");
   },
@@ -315,7 +314,8 @@ const states = {
     projLinePath.transition().duration(500).attr("opacity",0);
     projPeak.transition().duration(400).attr("opacity",0);
     histPeak.transition().duration(600).attr("opacity",1);
-    gapAnnotation.transition().duration(600).attr("opacity",1);
+    gapBand.transition().duration(400).attr("opacity",0);
+    gapAnnotation.transition().duration(400).attr("opacity",0);
     d3.select("#legend-future").style("opacity","0");
   },
   2: () => {
@@ -323,6 +323,7 @@ const states = {
     projLinePath.transition().duration(700).attr("opacity",1);
     projPeak.transition().duration(600).attr("opacity",1);
     histPeak.transition().duration(600).attr("opacity",1);
+    gapBand.transition().duration(700).delay(200).attr("opacity",1);
     gapAnnotation.transition().duration(800).delay(400).attr("opacity",1);
     d3.select("#legend-future").style("opacity","1");
   },
@@ -331,6 +332,7 @@ const states = {
     projLinePath.transition().duration(400).attr("opacity",1);
     projPeak.transition().duration(400).attr("opacity",1);
     histPeak.transition().duration(400).attr("opacity",1);
+    gapBand.transition().duration(500).attr("opacity",1);
     gapAnnotation.transition().duration(400).attr("opacity",1);
     d3.select("#legend-future").style("opacity","1");
   }
