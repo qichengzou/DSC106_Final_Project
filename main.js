@@ -1,12 +1,70 @@
 // Data
-// Representative CMIP6-derived seasonal cycles (indexed to annual max = 100)
-// Replace with real mrro values from your Python pipeline.
-
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const DATA_URL = new URL("data/sierra_melt_timing_profiles.csv", document.baseURI).href;
+const PROJECTED_SCENARIO = "ssp585";
 
-const historical = [3, 6, 18, 42, 82, 100, 72, 30, 10, 4, 2, 2];
-const projected  = [4, 9, 30, 78, 100, 62, 24,  8,  3, 2, 1, 1];
-const demand     = [8, 7, 10, 15, 38,  70, 100, 97, 62, 28,10, 7];
+// Illustrative agricultural water demand (not from CMIP6)
+const demand = [8, 7, 10, 15, 38, 70, 100, 97, 62, 28, 10, 7];
+
+let historical;
+let projected;
+
+function profileFromCsv(rows, scenario) {
+  const values = rows
+    .filter((d) => d.scenario === scenario)
+    .sort((a, b) => d3.ascending(a.month, b.month))
+    .map((d) => d.snw_index);
+
+  if (values.length !== 12) return null;
+  if (values.some((v) => !Number.isFinite(v))) {
+    throw new Error(`Non-numeric snw_index values for scenario ${scenario}`);
+  }
+  return values;
+}
+
+function showLoadError(message) {
+  const el = document.getElementById("chart-load-error");
+  if (!el) return;
+  el.innerHTML = message;
+  el.classList.add("visible");
+}
+
+function hideLoadError() {
+  const el = document.getElementById("chart-load-error");
+  if (!el) return;
+  el.classList.remove("visible");
+  el.textContent = "";
+}
+
+async function loadSnowProfiles() {
+  if (window.location.protocol === "file:") {
+    throw new Error("FILE_PROTOCOL");
+  }
+
+  const response = await fetch(DATA_URL);
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status} loading ${DATA_URL}`);
+  }
+
+  const rows = d3.csvParse(await response.text(), (d) => ({
+    scenario: (d.scenario || "").trim(),
+    month: +d.month,
+    snw_index: +d.snw_index,
+  }));
+
+  const hist = profileFromCsv(rows, "historical");
+  const proj = profileFromCsv(rows, PROJECTED_SCENARIO);
+
+  if (!hist || !proj) {
+    const scenarios = [...new Set(rows.map((d) => d.scenario))];
+    throw new Error(
+      `Expected 12 monthly rows per scenario in ${DATA_URL}. ` +
+      `Found scenarios: ${scenarios.join(", ")}`
+    );
+  }
+
+  return { historical: hist, projected: proj };
+}
 
 // Chart setup
 const svg   = d3.select("#chart-svg");
@@ -93,7 +151,16 @@ const defs = svg.append("defs");
 
 // Draw/update chart
 function draw() {
-  const iW = innerW(), iH = innerH();
+  const width = W();
+  const height = H();
+  if (width <= 0 || height <= 0) return;
+
+  svg.attr("width", width).attr("height", height);
+
+  const iW = innerW();
+  const iH = innerH();
+  if (iW <= 0 || iH <= 0) return;
+
   x.range([0, iW]);
   y.range([iH, 0]);
 
@@ -126,19 +193,29 @@ function draw() {
     .attr("stroke-dasharray","5 4")
     .attr("opacity",0.7);
 
-  histAreaPath.attr("d", area(historical))
-    .attr("fill","var(--blue-dim)");
-  histLinePath.attr("d", line(historical))
-    .attr("fill","none")
-    .attr("stroke","var(--blue)")
-    .attr("stroke-width",2.5);
+  if (historical && projected) {
+    histAreaPath
+      .attr("d", area(historical))
+      .attr("fill","var(--blue-dim)")
+      .attr("opacity", 1);
+    histLinePath
+      .attr("d", line(historical))
+      .attr("fill","none")
+      .attr("stroke","var(--blue)")
+      .attr("stroke-width",2.5)
+      .attr("opacity", 1);
 
-  projAreaPath.attr("d", area(projected))
-    .attr("fill","var(--red-dim)");
-  projLinePath.attr("d", line(projected))
-    .attr("fill","none")
-    .attr("stroke","var(--red)")
-    .attr("stroke-width",2.5);
+    projAreaPath
+      .attr("d", area(projected))
+      .attr("fill","var(--red-dim)");
+    projLinePath
+      .attr("d", line(projected))
+      .attr("fill","none")
+      .attr("stroke","var(--red)")
+      .attr("stroke-width",2.5);
+  }
+
+  if (!historical || !projected) return;
 
   const histPeakIdx = historical.indexOf(Math.max(...historical));
   const projPeakIdx = projected.indexOf(Math.max(...projected));
@@ -197,8 +274,13 @@ function draw() {
     .attr("height", iH);
 }
 
-draw();
 window.addEventListener("resize", draw);
+
+// Redraw once the SVG has layout dimensions (flex + async CSV load)
+if (typeof ResizeObserver !== "undefined") {
+  const chartObserver = new ResizeObserver(() => draw());
+  chartObserver.observe(svg.node());
+}
 
 // Scrollytelling states
 const steps = document.querySelectorAll(".step");
@@ -270,3 +352,38 @@ dots.forEach(d => {
     steps[i].scrollIntoView({ behavior:"smooth", block:"center" });
   });
 });
+
+// Draw demand/axes immediately; load snow curves from CSV
+draw();
+
+if (window.location.protocol === "file:") {
+  showLoadError(
+    "Snowpack data cannot load when this page is opened as a local file " +
+    "(<code>file://</code>). Run a local web server from the project folder, then open " +
+    "<code>http://localhost:5500/index.html</code>:<br><br>" +
+    "<code>cd DSC106_Final_Project</code><br>" +
+    "<code>python3 -m http.server 5500</code>"
+  );
+} else {
+  loadSnowProfiles()
+    .then((profiles) => {
+      hideLoadError();
+      historical = profiles.historical;
+      projected = profiles.projected;
+      console.info("Loaded snow profiles from", DATA_URL, {
+        historical,
+        projected,
+      });
+      draw();
+      setStep(currentStep);
+    })
+    .catch((err) => {
+      console.error("Failed to load snow profile CSV:", err);
+      const fileHint = err.message === "FILE_PROTOCOL"
+        ? "Use <code>python3 -m http.server 5500</code> instead of opening the HTML file directly."
+        : `Check that <code>data/sierra_melt_timing_profiles.csv</code> exists and the dev server is running.`;
+      showLoadError(
+        "Could not load snowpack CSV. " + fileHint
+      );
+    });
+}
