@@ -252,14 +252,6 @@ function draw() {
     .attr("x1",ppx).attr("x2",ppx)
     .attr("y1",projY).attr("y2",iH);
 
-  placePeakLabel(histPeak.select("text"), hpx, histY, iW);
-  const projText = projPeak.select("text");
-  placePeakLabel(projText, ppx, projY, iW);
-  if (peaksClose) {
-    const dy = parseFloat(projText.attr("dy")) || -10;
-    projText.attr("dy", `${dy - 16}px`);
-  }
-
   const demandPeakIdx = demand.indexOf(Math.max(...demand));
   const demandPeakX = x(MONTHS[demandPeakIdx]);
   const yDemandPeak = y(demand[demandPeakIdx]);
@@ -282,9 +274,24 @@ function draw() {
     .attr("x1", x0).attr("x2", x1)
     .attr("y1", yDemandPeak).attr("y2", yDemandPeak);
 
+  const gapLabelX = x0 + (x1 - x0) * 0.62;
+  const gapLabelY = bandHeight > 28
+    ? yTop + bandHeight / 2
+    : projY + 18;
+
   gapAnnotation.select(".gap-label")
-    .attr("x", (x0 + x1) / 2)
-    .attr("y", yTop + bandHeight / 2);
+    .attr("x", gapLabelX)
+    .attr("y", gapLabelY);
+
+  placePeakLabel(histPeak.select("text"), hpx, histY, iW);
+  const projText = projPeak.select("text");
+  placePeakLabel(projText, ppx, yTop, iW);
+  projText.attr("dy", "-14px");
+  if (peaksClose) {
+    const dy = parseFloat(projText.attr("dy")) || -14;
+    projText.attr("dy", `${dy - 18}px`);
+    histPeak.select("text").attr("dy", "-32px");
+  }
 }
 
 window.addEventListener("resize", draw);
