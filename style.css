@@ -268,3 +268,82 @@ body {
   background: var(--blue);
   transform: scale(1.4);
 }
+
+/* ============================================================ */
+/* Chart tooltip                                                */
+/* ============================================================ */
+
+#chart-tooltip {
+  position: fixed;
+  pointer-events: none;
+  z-index: 200;
+  background: var(--bg-panel);
+  border: 1px solid var(--rule);
+  border-left-width: 2px;
+  border-left-color: var(--rule);
+  padding: 0.7rem 0.9rem 0.65rem;
+  min-width: 180px;
+  max-width: 280px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--text);
+  opacity: 0;
+  transform: translateY(2px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  border-radius: 2px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.45);
+}
+
+#chart-tooltip.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+#chart-tooltip[data-series="historical"] { border-left-color: var(--blue); }
+#chart-tooltip[data-series="projected"]  { border-left-color: var(--red); }
+#chart-tooltip[data-series="demand"]     { border-left-color: var(--demand); }
+
+#chart-tooltip .tt-eyebrow {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  color: var(--text-dim);
+  margin-bottom: 0.6rem;
+}
+
+#chart-tooltip .tt-eyebrow .tt-month {
+  color: var(--text);
+}
+
+#chart-tooltip .tt-primary {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.1;
+  margin-bottom: 0.2rem;
+}
+
+#chart-tooltip .tt-secondary {
+  font-size: 0.74rem;
+  color: var(--text-dim);
+  margin-bottom: 0.6rem;
+}
+
+#chart-tooltip .tt-footer {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.62rem;
+  color: var(--text-dim);
+  line-height: 1.55;
+  border-top: 1px solid var(--rule);
+  padding-top: 0.45rem;
+}
+
+#chart-tooltip .tt-footer-line + .tt-footer-line {
+  margin-top: 0.1rem;
+}
+
+.tooltip-targets circle {
+  cursor: pointer;
+}
