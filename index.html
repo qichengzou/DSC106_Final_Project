@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Melt Timing Problem — Shrinking Snowpack</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav id="progress">
+  <div class="dot active" data-step="0"></div>
+  <div class="dot" data-step="1"></div>
+  <div class="dot" data-step="2"></div>
+  <div class="dot" data-step="3"></div>
+</nav>
+
+<!-- INTRO -->
+<div class="full-section">
+  <div class="intro-inner">
+    <h1>It's Not How Much.<br><span>It's When.</span></h1>
+    <p>The Sierra Nevada snowpack isn't just a measure of water volume — it's a question of timing. And the clock is shifting.</p>
+    <div class="scroll-cue">↓ scroll to explore</div>
+  </div>
+</div>
+
+<!-- STICKY SCENE -->
+<div id="scene">
+
+  <div id="sticky-chart">
+    <div id="chart-title">Sierra Nevada snowmelt vs. water demand</div>
+    <div id="chart-subtitle">Monthly seasonal cycle · % of annual maximum</div>
+    <svg id="chart-svg"></svg>
+    <div id="legend">
+      <div class="legend-item">
+        <div class="legend-swatch" style="background:var(--blue)"></div>
+        <span>Snowmelt runoff</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-swatch" style="background:var(--demand); opacity:0.7"></div>
+        <span>Water demand (CA agriculture)</span>
+      </div>
+      <div class="legend-item" id="legend-future" style="opacity:0; transition:opacity 0.5s">
+        <div class="legend-swatch" style="background:var(--red)"></div>
+        <span>Projected melt (SSP5-8.5, 2050–2080)</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="scroll-text">
+
+    <div class="step" data-step="0">
+      <div class="step-inner">
+        <div class="step-tag">Scene 3 of 4 · Timing</div>
+        <div class="step-head">The West's natural water tower</div>
+        <div class="step-body">
+          Every winter, the Sierra Nevada stores billions of gallons of water as snow. Each spring, that snow melts slowly — acting like a giant reservoir with no walls, feeding rivers through the dry summer months.
+          <div class="callout">~30% of California's water supply<br>originates as Sierra snowpack</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step" data-step="1">
+      <div class="step-inner">
+        <div class="step-tag">Scene 3 of 4 · The problem</div>
+        <div class="step-head">Melt peaks in <em>June</em>.<br>Demand peaks in <em>August</em>.</div>
+        <div class="step-body">
+          Historically, this worked. <strong>Snowmelt peaked in June</strong>, just as agricultural demand was ramping up. The curves overlapped enough that reservoirs could buffer the difference.
+        </div>
+      </div>
+    </div>
+
+    <div class="step" data-step="2">
+      <div class="step-inner">
+        <div class="step-tag">Scene 3 of 4 · The shift</div>
+        <div class="step-head">Warmer springs pull the peak <em>earlier</em></div>
+        <div class="step-body">
+          Under high-emissions projections, the melt peak shifts from June toward <strong>April</strong>. The water arrives — and runs off — before farms need it. By the time August demand peaks, the snowpack is gone.
+          <div class="callout">Peak melt: June → April<br>Water demand peak: unchanged, July–Aug<br>Gap grows by ~6–8 weeks</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step" data-step="3">
+      <div class="step-inner">
+        <div class="step-tag">Scene 3 of 4 · Consequence</div>
+        <div class="step-head">The reservoir empties<br>before demand arrives</div>
+        <div class="step-body">
+          This isn't just less water — it's water arriving at the <strong>wrong time</strong>. Infrastructure built for a June melt can't easily adapt to April floods followed by August drought. The gap between when water comes and when it's needed is the real crisis.
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- OUTRO -->
+<div class="full-section">
+  <div class="intro-inner">
+    <h1 style="font-size: clamp(1.4rem,3vw,2rem); margin-bottom:1rem;">
+      Volume + Timing = Crisis
+    </h1>
+    <p>Even if total snowfall stayed the same, a shifted melt season would destabilize water systems built around historical patterns.</p>
+  </div>
+</div>
+
+<script src="main.js"></script>
+</body>
+</html>
