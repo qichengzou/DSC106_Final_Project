@@ -116,6 +116,20 @@ body {
   flex-shrink: 0;
 }
 
+.chart-hover-note {
+  align-self: flex-start;
+  margin-top: 0.75rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 0.25rem 0.65rem;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.64rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  background: rgba(255,255,255,0.03);
+}
+
 /* Scrolly text column */
 #scroll-text {
   width: 42%;
