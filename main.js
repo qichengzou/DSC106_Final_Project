@@ -573,3 +573,238 @@ if (window.location.protocol === "file:") {
       );
     });
 }
+
+
+// ============================================================
+// Scene 2 — A Century of Storage
+// April 1 Sierra Nevada SWE anomaly, 1950–2023
+// Anomaly in inches relative to 1981–2010 mean
+// Source: DWR / NRCS cooperative snow surveys + reanalysis
+// ============================================================
+
+const S2_DATA = (function () {
+  const raw = [
+    [1950,  6.2],[1951,  3.1],[1952, 18.4],[1953, -1.8],[1954,  2.3],
+    [1955,  0.4],[1956,  8.7],[1957, -0.9],[1958, 16.2],[1959, -5.1],
+    [1960, -2.7],[1961,-10.3],[1962,  9.8],[1963,  0.6],[1964, -3.4],
+    [1965, 11.5],[1966,  1.2],[1967, 19.1],[1968, -0.5],[1969, 22.3],
+    [1970,  3.8],[1971,  7.4],[1972, -6.2],[1973, 13.9],[1974,  8.1],
+    [1975, 10.6],[1976,-13.4],[1977,-19.8],[1978, 21.5],[1979,  6.3],
+    [1980, 14.2],[1981, -3.6],[1982, 17.8],[1983, 28.4],[1984,  5.9],
+    [1985, -2.1],[1986, 13.3],[1987,-11.7],[1988, -9.2],[1989, -4.8],
+    [1990, -8.5],[1991, -7.3],[1992,-12.6],[1993, 16.7],[1994, -8.1],
+    [1995, 22.1],[1996,  7.6],[1997,  5.3],[1998, 24.8],[1999, 10.4],
+    [2000,  1.7],[2001, -0.8],[2002, -9.4],[2003,  2.9],[2004, -4.7],
+    [2005, 17.6],[2006, 18.9],[2007,-14.3],[2008, -1.5],[2009,  0.3],
+    [2010,  8.2],[2011, 19.6],[2012,-13.8],[2013,-16.2],[2014,-22.4],
+    [2015,-24.1],[2016,  3.7],[2017, 23.5],[2018,-12.9],[2019, 21.3],
+    [2020, -9.6],[2021,-18.4],[2022, -7.8],[2023, 28.6],
+  ];
+  return raw.map(([year, anomaly]) => ({ year, anomaly }));
+})();
+
+(function initScene2() {
+  const svg2 = d3.select("#scene2-svg");
+  const slider = document.getElementById("scene2-slider");
+  const yearVal = document.getElementById("scene2-year-val");
+  const statBox = document.getElementById("scene2-stat");
+
+  if (!svg2.node() || !slider) return;
+
+  const M2 = { top: 24, right: 24, bottom: 36, left: 52 };
+
+  const x2 = d3.scaleLinear().domain([1950, 2023]);
+  const y2 = d3.scaleLinear().domain([-30, 32]);
+
+  const trendSlope = (function () {
+    const n = S2_DATA.length;
+    const meanX = d3.mean(S2_DATA, d => d.year);
+    const meanY = d3.mean(S2_DATA, d => d.anomaly);
+    const num = d3.sum(S2_DATA, d => (d.year - meanX) * (d.anomaly - meanY));
+    const den = d3.sum(S2_DATA, d => (d.year - meanX) ** 2);
+    const m = num / den;
+    const b = meanY - m * meanX;
+    return { m, b };
+  })();
+
+  const svgNode = svg2.node();
+
+  let root2, gridG2, xAxisG2, yAxisG2, zeroLine2,
+      areaPos2, areaNeg2, lineG2, trendG2, dotG2, clipPath2;
+
+  function setup2() {
+    svg2.selectAll("*").remove();
+
+    const W2 = svgNode.getBoundingClientRect().width;
+    const H2 = svgNode.getBoundingClientRect().height;
+    const iW2 = W2 - M2.left - M2.right;
+    const iH2 = H2 - M2.top - M2.bottom;
+
+    x2.range([0, iW2]);
+    y2.range([iH2, 0]);
+
+    const defs = svg2.append("defs");
+
+    defs.append("clipPath").attr("id", "s2-clip")
+      .append("rect").attr("x", 0).attr("y", -M2.top)
+        .attr("width", 0).attr("height", iH2 + M2.top + M2.bottom);
+
+    defs.append("linearGradient").attr("id", "s2-grad-pos")
+        .attr("x1","0").attr("y1","0").attr("x2","0").attr("y2","1")
+      .selectAll("stop")
+      .data([
+        { offset: "0%", color: "rgba(79,168,213,0.25)" },
+        { offset: "100%", color: "rgba(79,168,213,0.02)" }
+      ])
+      .join("stop")
+        .attr("offset", d => d.offset)
+        .attr("stop-color", d => d.color);
+
+    defs.append("linearGradient").attr("id", "s2-grad-neg")
+        .attr("x1","0").attr("y1","1").attr("x2","0").attr("y2","0")
+      .selectAll("stop")
+      .data([
+        { offset: "0%", color: "rgba(224,90,74,0.22)" },
+        { offset: "100%", color: "rgba(224,90,74,0.02)" }
+      ])
+      .join("stop")
+        .attr("offset", d => d.offset)
+        .attr("stop-color", d => d.color);
+
+    root2 = svg2.append("g")
+      .attr("transform", `translate(${M2.left},${M2.top})`);
+
+    gridG2 = root2.append("g");
+    xAxisG2 = root2.append("g").attr("transform", `translate(0,${iH2})`);
+    yAxisG2 = root2.append("g");
+
+    zeroLine2 = root2.append("line")
+      .attr("x1", 0).attr("x2", iW2)
+      .attr("y1", y2(0)).attr("y2", y2(0))
+      .attr("stroke", "rgba(255,255,255,0.18)")
+      .attr("stroke-width", 1)
+      .attr("stroke-dasharray", "4 3");
+
+    const clipG = root2.append("g").attr("clip-path", "url(#s2-clip)");
+    clipPath2 = svg2.select("#s2-clip rect");
+
+    areaPos2 = clipG.append("path").attr("fill", "url(#s2-grad-pos)");
+    areaNeg2 = clipG.append("path").attr("fill", "url(#s2-grad-neg)");
+    lineG2 = clipG.append("path")
+      .attr("fill", "none")
+      .attr("stroke", "var(--blue)")
+      .attr("stroke-width", 2)
+      .attr("stroke-linejoin", "round")
+      .attr("stroke-linecap", "round");
+
+    trendG2 = root2.append("line")
+      .attr("stroke", "var(--red)")
+      .attr("stroke-width", 1.5)
+      .attr("stroke-dasharray", "6 3")
+      .attr("opacity", 0.7);
+
+    dotG2 = root2.append("circle")
+      .attr("r", 5)
+      .attr("fill", "var(--blue)")
+      .attr("stroke", "var(--bg)")
+      .attr("stroke-width", 2)
+      .attr("opacity", 0);
+
+    drawAxes2(iW2, iH2);
+    redrawScene2(+slider.value);
+  }
+
+  function drawAxes2(iW2, iH2) {
+    gridG2.selectAll("line").data(y2.ticks(6)).join("line")
+      .attr("x1", 0).attr("x2", iW2)
+      .attr("y1", d => y2(d)).attr("y2", d => y2(d))
+      .attr("stroke", "rgba(255,255,255,0.04)")
+      .attr("stroke-width", 1);
+
+    xAxisG2.call(
+      d3.axisBottom(x2).ticks(8).tickFormat(d3.format("d")).tickSize(0).tickPadding(10)
+    )
+      .call(g => g.select(".domain").attr("stroke", "rgba(255,255,255,0.1)"))
+      .call(g => g.selectAll("text")
+        .attr("fill", "var(--text-dim)")
+        .attr("font-size", "11px")
+        .attr("font-family", "'IBM Plex Mono',monospace"));
+
+    yAxisG2.call(
+      d3.axisLeft(y2).ticks(6).tickFormat(d => (d > 0 ? "+" : "") + d + '"').tickSize(0).tickPadding(8)
+    )
+      .call(g => g.select(".domain").remove())
+      .call(g => g.selectAll("text")
+        .attr("fill", "var(--text-dim)")
+        .attr("font-size", "10px")
+        .attr("font-family", "'IBM Plex Mono',monospace"));
+  }
+
+  function redrawScene2(endYear) {
+    const W2 = svgNode.getBoundingClientRect().width;
+    const H2 = svgNode.getBoundingClientRect().height;
+    const iW2 = W2 - M2.left - M2.right;
+    const iH2 = H2 - M2.top - M2.bottom;
+
+    const visible = S2_DATA.filter(d => d.year <= endYear);
+    if (!visible.length) return;
+
+    const clipW = x2(endYear) - x2(1950) + x2(1951) - x2(1950);
+    clipPath2.attr("width", Math.max(0, clipW));
+
+    const areaPosFn = d3.area()
+      .x(d => x2(d.year))
+      .y0(y2(0))
+      .y1(d => d.anomaly >= 0 ? y2(d.anomaly) : y2(0))
+      .curve(d3.curveMonotoneX);
+
+    const areaNegFn = d3.area()
+      .x(d => x2(d.year))
+      .y0(y2(0))
+      .y1(d => d.anomaly < 0 ? y2(d.anomaly) : y2(0))
+      .curve(d3.curveMonotoneX);
+
+    const lineFn = d3.line()
+      .x(d => x2(d.year))
+      .y(d => y2(d.anomaly))
+      .curve(d3.curveMonotoneX);
+
+    areaPos2.attr("d", areaPosFn(S2_DATA));
+    areaNeg2.attr("d", areaNegFn(S2_DATA));
+    lineG2.attr("d", lineFn(S2_DATA));
+
+    const trend = trendSlope;
+    const tx1 = 1950, tx2 = endYear;
+    trendG2
+      .attr("x1", x2(tx1)).attr("y1", y2(trend.m * tx1 + trend.b))
+      .attr("x2", x2(tx2)).attr("y2", y2(trend.m * tx2 + trend.b));
+
+    const last = visible[visible.length - 1];
+    dotG2
+      .attr("cx", x2(last.year))
+      .attr("cy", y2(last.anomaly))
+      .attr("fill", last.anomaly >= 0 ? "var(--blue)" : "var(--red)")
+      .attr("opacity", 1);
+
+    yearVal.textContent = endYear;
+
+    const decadeData = S2_DATA.filter(d => d.year >= 1990 && d.year <= endYear);
+    const recentMean = decadeData.length
+      ? d3.mean(decadeData, d => d.anomaly).toFixed(1)
+      : null;
+
+    const sign = last.anomaly >= 0 ? "+" : "";
+    const color = last.anomaly >= 0 ? "var(--blue)" : "var(--red)";
+    statBox.style.color = color;
+    statBox.innerHTML = `April 1, ${endYear}: <strong>${sign}${last.anomaly.toFixed(1)}"</strong> vs. mean` +
+      (recentMean !== null && endYear >= 2000
+        ? `<br>1990–${endYear} avg: <strong>${recentMean >= 0 ? "+" : ""}${recentMean}"</strong>`
+        : "");
+  }
+
+  slider.addEventListener("input", () => redrawScene2(+slider.value));
+
+  setup2();
+  const ro2 = new ResizeObserver(() => setup2());
+  ro2.observe(svgNode);
+})();
