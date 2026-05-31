@@ -613,7 +613,7 @@ async function initScene2() {
   const M2 = { top: 24, right: 24, bottom: 36, left: 52 };
 
   const x2 = d3.scaleLinear().domain([1950, 2023]);
-  const y2 = d3.scaleLinear().domain([-30, 32]);
+  const y2 = d3.scaleLinear();
 
   const svgNode = svg2.node();
 
@@ -622,6 +622,10 @@ async function initScene2() {
 
   function setup2() {
     svg2.selectAll("*").remove();
+
+    const anomalyExtent = d3.extent(S2_DATA, d => d.anomaly);
+    const pad = Math.max(1, (anomalyExtent[1] - anomalyExtent[0]) * 0.15);
+    y2.domain([anomalyExtent[0] - pad, anomalyExtent[1] + pad]);
 
     const W2 = svgNode.getBoundingClientRect().width;
     const H2 = svgNode.getBoundingClientRect().height;
