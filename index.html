@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sierra Runoff vs. Water Demand — CMIP6</title>
+<title>Sierra Nevada Snowmelt — Timing &amp; Volume (CMIP6)</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
@@ -16,13 +16,14 @@
   <div class="dot" data-step="1"></div>
   <div class="dot" data-step="2"></div>
   <div class="dot" data-step="3"></div>
+  <div class="dot" data-step="4"></div>
 </nav>
 
 <!-- INTRO -->
 <div class="full-section">
   <div class="intro-inner">
-    <h1>Same Peak. Empty Summer</h1>
-    <p>CMIP6 models show the Sierra Nevada delivering most runoff in winter — months before California agriculture needs it most. Under warming, that mismatch gets harder to manage.</p>
+    <h1>The Peak Comes Early</h1>
+    <p>CMIP6 models show the Sierra Nevada's snowmelt arriving earlier in the year — and carrying far less water. Both shifts widen the gap between when the water comes and when California needs it most.</p>
     <div class="scroll-cue">↓ scroll to explore</div>
   </div>
 </div>
@@ -31,22 +32,28 @@
 <div id="scene">
 
   <div id="sticky-chart">
-    <div id="chart-title">Sierra Nevada runoff vs. water demand</div>
-    <div id="chart-subtitle">CMIP6 monthly runoff (mrro) · regional mean · % of historical peak</div>
+    <div id="chart-title">Sierra Nevada snowmelt — when it arrives, and how much</div>
+    <div id="chart-subtitle">CMIP6 monthly snowmelt (snm) · Sierra Nevada · water year, Oct–Sep</div>
+    <div class="chart-controls">
+      <label>
+        <input type="checkbox" id="normalize-toggle" checked>
+        Normalize each curve to its own peak (timing only)
+      </label>
+    </div>
     <div id="chart-load-error" role="alert" aria-live="polite"></div>
     <svg id="chart-svg"></svg>
     <div id="legend">
       <div class="legend-item">
         <div class="legend-swatch" style="background:var(--blue)"></div>
-        <span>Historical runoff (1970–2000)</span>
-      </div>
-      <div class="legend-item">
-        <div class="legend-swatch" style="background:var(--demand); opacity:0.7"></div>
-        <span>Water demand (CA agriculture)</span>
+        <span>Historical snowmelt (1970–2000)</span>
       </div>
       <div class="legend-item" id="legend-future" style="opacity:0; transition:opacity 0.5s">
         <div class="legend-swatch" style="background:var(--red)"></div>
-        <span>Projected runoff, SSP5-8.5 (2050–2075)</span>
+        <span>Projected snowmelt · SSP5-8.5 (2070–2100)</span>
+      </div>
+      <div class="legend-item" id="legend-demand" style="opacity:0; transition:opacity 0.5s">
+        <div class="legend-swatch" style="background:var(--demand); opacity:0.7"></div>
+        <span>Water demand · CA agriculture (illustrative)</span>
       </div>
     </div>
     <div class="chart-hover-note">Hover for monthly values</div>
@@ -56,42 +63,54 @@
 
     <div class="step" data-step="0">
       <div class="step-inner">
-        <div class="step-tag">Step 1 of 4 · Timing</div>
-        <div class="step-head">The West's natural water tower</div>
+        <div class="step-tag">Step 1 of 5 · The water tower</div>
+        <div class="step-head">The West's frozen reservoir</div>
         <div class="step-body">
-          The Sierra Nevada acts as a natural water tower for California. In these CMIP6 simulations, <strong>regional runoff is strongest in winter</strong>, when storms and snowpack both contribute to river flow.
-          <div class="callout">~30% of California's water supply<br>originates as Sierra snowpack</div>
+          The Sierra Nevada banks California's winter precipitation as snow, then releases it slowly as meltwater. In these CMIP6 simulations, that melt pulse is strongest in <strong>late winter</strong> — long before the state needs the water most.
+          <div class="callout">~30% of California's water supply<br>begins as Sierra snowpack</div>
         </div>
       </div>
     </div>
 
     <div class="step" data-step="1">
       <div class="step-inner">
-        <div class="step-tag">Step 2 of 4 · The problem</div>
-        <div class="step-head">Runoff peaks in <em>winter</em>.<br>Demand peaks in <em>August</em>.</div>
+        <div class="step-tag">Step 2 of 5 · The rhythm</div>
+        <div class="step-head">Most of the melt arrives<br>in <em>late winter</em></div>
         <div class="step-body">
-          Historically, the ensemble mean runoff peaks around <strong>February</strong>, then falls through spring and summer. Illustrative agricultural demand still peaks in <strong>July–August</strong>. Reservoirs store winter flows for the irrigation season.
+          Historically (1970–2000), the ensemble-mean melt peaks in <strong>March</strong>, then tails off through spring and summer. On a water-year axis (October → September) that peak sits near the center of the plot — the natural shape we're about to watch change.
         </div>
       </div>
     </div>
 
     <div class="step" data-step="2">
       <div class="step-inner">
-        <div class="step-tag">Step 3 of 4 · The change</div>
-        <div class="step-head">Warming lowers runoff —<br>especially in <em>spring</em></div>
+        <div class="step-tag">Step 3 of 5 · The shift</div>
+        <div class="step-head">Warming pulls the peak <em>earlier</em></div>
         <div class="step-body">
-          Under SSP5-8.5, the winter peak stays in the same season but <strong>drops in magnitude</strong>. Runoff from March through June is much lower than in the historical period — less water moving through the basin when storage and soils would normally recharge.
-          <div class="callout">Feb peak: ~100 → ~80 (indexed)<br>Jun runoff: ~10 → ~1 (indexed)<br>Peak month: unchanged in this ensemble</div>
+          Under the high-emissions SSP5-8.5 scenario (2070–2100), the melt peak slides from <strong>March to February</strong> — about a month earlier. Because each curve here is scaled to its own peak, you're seeing pure <strong>timing</strong>: the warm-future pulse is visibly shifted to the left.
+          <div class="callout">Peak month: March → February<br>(~1 month earlier)<br>Center-timing: 2.46 → 1.88 months</div>
         </div>
       </div>
     </div>
 
     <div class="step" data-step="3">
       <div class="step-inner">
-        <div class="step-tag">Step 4 of 4 · Consequence</div>
-        <div class="step-head">Less winter water,<br>same summer demand</div>
+        <div class="step-tag">Step 4 of 5 · The volume</div>
+        <div class="step-head">And there's <em>far less</em> of it</div>
         <div class="step-body">
-          The stress is twofold: <strong>less total runoff</strong> under high emissions, and the same seasonal split — wet winter flows versus peak irrigation need months later. Systems that rely on storing winter surplus have less to draw on in dry years.
+          Timing isn't the whole story. Switch to absolute units and the warm-future melt pulse collapses: peak melt nearly halves, from about <strong>1.19 to 0.61 mm/day</strong>. The melt also concentrates into the deepest winter months, leaving even less for spring.
+          <div class="callout">Peak melt: ~1.19 → ~0.61 mm/day<br>Nov–Mar share: 82% → 91%<br>Apr–Jul share: 16% → 9%</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step" data-step="4">
+      <div class="step-inner">
+        <div class="step-tag">Step 5 of 5 · The mismatch</div>
+        <div class="step-head">Earlier and smaller —<br>still out of step with <em>summer</em></div>
+        <div class="step-body">
+          California agriculture draws the most water in <strong>mid-to-late summer</strong>, months after the melt peak. A winter pulse that is now both <strong>earlier and smaller</strong> means even more of the year's water has to be captured and stored to bridge the gap to peak demand.
+          <div class="callout">Melt peak: Feb–Mar<br>Demand peak: ~July<br>Stored water bridges the ~5-month gap</div>
         </div>
       </div>
     </div>
@@ -103,9 +122,9 @@
 <div class="full-section">
   <div class="intro-inner">
     <h1 style="font-size: clamp(1.4rem,3vw,2rem); margin-bottom:1rem;">
-      Less Runoff + Seasonal Mismatch
+      Less Snowmelt, Arriving Sooner
     </h1>
-    <p>These CMIP6 projections point to reduced Sierra runoff under SSP5-8.5 — not a large shift in peak month in this ensemble, but less water when the wet season arrives and even less heading into summer demand.</p>
+    <p>Under SSP5-8.5, the Sierra's melt pulse peaks about a month earlier and carries nearly half as much water. Both shifts deepen California's reliance on storage to carry winter melt across to peak summer demand.</p>
   </div>
 </div>
 

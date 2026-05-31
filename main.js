@@ -1,28 +1,43 @@
-// Data
+// Data — MONTHS is calendar order (0-indexed). The story is told on a water-year
+// axis (Oct → Sep), so every plotted series is built in WY_ORDER, not calendar order.
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-const DATA_URL = new URL("data/sierra_melt_timing_profiles.csv", document.baseURI).href;
-const PROJECTED_SCENARIO = "ssp585";
+// water-year order as CALENDAR indices: Oct(9), Nov(10), Dec(11), Jan(0) ... Sep(8)
+const WY_ORDER  = [9,10,11,0,1,2,3,4,5,6,7,8];
+const WY_LABELS = WY_ORDER.map((i) => MONTHS[i]); // ["Oct",...,"Sep"]
 
-// Illustrative agricultural water demand (not from CMIP6)
+const DATA_URL = new URL("data/sierra_snowmelt_profiles.csv", document.baseURI).href;
+const PROJECTED_SCENARIO = "ssp585";
+const SECONDS_PER_DAY = 86400; // snm flux (kg m^-2 s^-1) × 86400 → mm/day
+
+// Illustrative agricultural water demand (not from CMIP6), calendar order Jan..Dec.
 const demand = [8, 7, 10, 15, 38, 70, 100, 97, 62, 28, 10, 7];
 
-let historical;
-let projected;
+// Display mode: normalized (each curve scaled to its own peak — timing only) by
+// default; raw = mm/day (timing + volume).
+let normalize = true;
 
-// Tooltip metadata lookup: "${scenario}-${month}" -> { mean_kgm2, model_count }
+// Parsed snowmelt records: scenario -> 12 calendar-ordered records.
+let scenarioData = { historical: null, projected: null };
+
+// Tooltip metadata lookup: "${scenario}-${month}" -> { mean_kgm2, model_count, self_index }
 let metadataByKey = {};
 
 function profileFromCsv(rows, scenario) {
-  const values = rows
+  const recs = rows
     .filter((d) => d.scenario === scenario)
     .sort((a, b) => d3.ascending(a.month, b.month))
-    .map((d) => Math.max(0, d.snw_index));
+    .map((d) => ({
+      monthIdx: d.month - 1,          // 0-11 calendar
+      flux: d.mean,                   // kg m^-2 s^-1
+      selfIndex: Math.max(0, d.self_index),
+      modelCount: d.model_count,
+    }));
 
-  if (values.length !== 12) return null;
-  if (values.some((v) => !Number.isFinite(v))) {
-    throw new Error(`Non-numeric snw_index values for scenario ${scenario}`);
+  if (recs.length !== 12) return null;
+  if (recs.some((r) => !Number.isFinite(r.flux) || !Number.isFinite(r.selfIndex))) {
+    throw new Error(`Non-numeric snowmelt values for scenario ${scenario}`);
   }
-  return values;
+  return recs;
 }
 
 function showLoadError(message) {
@@ -52,17 +67,18 @@ async function loadSnowProfiles() {
   const rows = d3.csvParse(await response.text(), (d) => ({
     scenario: (d.scenario || "").trim(),
     month: +d.month,
-    snw_index: +d.snw_index,
-    mean_kgm2: +d.mean,           // raw mrro flux (kg m^-2 s^-1)
+    mean: +d.mean,                // snm flux (kg m^-2 s^-1)
+    self_index: +d.self_index,    // indexed so each scenario's own peak = 100
     model_count: +d.model_count,
   }));
 
-  // Build the tooltip metadata lookup (additive; chart arrays unchanged).
+  // Tooltip metadata lookup (carries self_index for the normalized secondary line).
   metadataByKey = {};
   rows.forEach((d) => {
     metadataByKey[`${d.scenario}-${d.month}`] = {
-      mean_kgm2: d.mean_kgm2,
+      mean_kgm2: d.mean,
       model_count: d.model_count,
+      self_index: d.self_index,
     };
   });
 
@@ -80,51 +96,90 @@ async function loadSnowProfiles() {
   return { historical: hist, projected: proj };
 }
 
+// Build a water-year plotting array (Oct..Sep) from 12 calendar records. The
+// area/line generators connect points in array order, so this MUST be water-year
+// ordered to avoid a zig-zag path.
+function waterYearPoints(recs) {
+  const byCal = {};
+  recs.forEach((r) => { byCal[r.monthIdx] = r; });
+  return WY_ORDER.map((ci, pos) => {
+    const r = byCal[ci];
+    const value = normalize ? r.selfIndex : r.flux * SECONDS_PER_DAY; // mm/day when raw
+    return { pos, monthIdx: ci, label: MONTHS[ci], value };
+  });
+}
+
+// Illustrative demand, self-normalized to its own peak (0-100), water-year order.
+// Demand has no mm/day meaning, so it is only ever shown on the normalized axis.
+function demandWaterYearPoints() {
+  const dmax = Math.max(...demand);
+  return WY_ORDER.map((ci, pos) => ({
+    pos, monthIdx: ci, label: MONTHS[ci], value: (demand[ci] / dmax) * 100,
+  }));
+}
+
 // Chart setup
 const svg   = d3.select("#chart-svg");
 const W     = () => svg.node().getBoundingClientRect().width;
 const H     = () => svg.node().getBoundingClientRect().height;
-const MARGIN = { top: 28, right: 24, bottom: 40, left: 56 };
+const MARGIN = { top: 28, right: 24, bottom: 44, left: 56 };
 
-const x = d3.scalePoint().domain(MONTHS).padding(0.1);
-const y = d3.scaleLinear().domain([0, 110]).nice();
+const x = d3.scalePoint().domain(WY_LABELS).padding(0.1);
+const y = d3.scaleLinear();
 
-const area = (data) => d3.area()
-  .x((d,i) => x(MONTHS[i]))
-  .y0(y(0))
-  .y1(d => y(d))
-  .curve(d3.curveCatmullRom.alpha(0.5))(data);
+// Generators reference the live x/y scales; ranges/domains are set in draw().
+const area = d3.area()
+  .x((d) => x(d.label))
+  .y0(() => y(0))
+  .y1((d) => y(d.value))
+  .curve(d3.curveCatmullRom.alpha(0.5));
 
-const line = (data) => d3.line()
-  .x((d,i) => x(MONTHS[i]))
-  .y(d => y(d))
-  .curve(d3.curveCatmullRom.alpha(0.5))(data);
+const line = d3.line()
+  .x((d) => x(d.label))
+  .y((d) => y(d.value))
+  .curve(d3.curveCatmullRom.alpha(0.5));
 
 function innerW() { return W() - MARGIN.left - MARGIN.right; }
 function innerH() { return H() - MARGIN.top  - MARGIN.bottom; }
 
 // SVG elements
+const defs = svg.append("defs");
+defs.append("marker")
+  .attr("id", "arrow-shift")
+  .attr("viewBox", "0 0 10 10").attr("refX", 5).attr("refY", 5)
+  .attr("markerWidth", 6).attr("markerHeight", 6)
+  .attr("orient", "auto-start-reverse")
+  .append("path").attr("d", "M0,5 L10,0 L10,10 Z").attr("fill", "var(--text)");
+
 const root = svg.append("g")
   .attr("transform", `translate(${MARGIN.left},${MARGIN.top})`);
 
-const gridG = root.append("g").attr("class","grid");
+const gridG  = root.append("g").attr("class","grid");
 const xAxisG = root.append("g").attr("class","x-axis");
 const yAxisG = root.append("g").attr("class","y-axis");
 
-const gapBand = root.append("g").attr("class","gap-band-layer").attr("opacity",0);
-gapBand.append("rect").attr("class","gap-band")
-  .attr("fill","rgba(224,90,74,0.14)");
+const yAxisTitle = root.append("text").attr("class","axis-title")
+  .attr("transform","rotate(-90)").attr("text-anchor","middle")
+  .attr("fill","var(--text-dim)").attr("font-size","10px")
+  .attr("font-family","'IBM Plex Mono',monospace");
+const xAxisTitle = root.append("text").attr("class","axis-title")
+  .attr("text-anchor","middle")
+  .attr("fill","var(--text-dim)").attr("font-size","10px")
+  .attr("font-family","'IBM Plex Mono',monospace")
+  .text("water year (Oct → Sep)");
 
-const demandAreaPath = root.append("path").attr("class","demand-area");
-const demandLinePath = root.append("path").attr("class","demand-line");
+// Shaded melt → demand offset region (sits behind the curves).
+const gapBand = root.append("g").attr("class","gap-band-layer").attr("opacity",0);
+gapBand.append("rect").attr("class","gap-band").attr("fill","var(--gap)");
+
+const demandAreaPath = root.append("path").attr("class","demand-area").attr("opacity",0);
+const demandLinePath = root.append("path").attr("class","demand-line").attr("opacity",0);
 
 const histAreaPath = root.append("path").attr("class","hist-area");
 const histLinePath = root.append("path").attr("class","hist-line");
 
-const projAreaPath = root.append("path").attr("class","proj-area")
-  .attr("opacity",0);
-const projLinePath = root.append("path").attr("class","proj-line")
-  .attr("opacity",0);
+const projAreaPath = root.append("path").attr("class","proj-area").attr("opacity",0);
+const projLinePath = root.append("path").attr("class","proj-line").attr("opacity",0);
 
 const histPeak = root.append("g").attr("class","peak-hist").attr("opacity",0);
 histPeak.append("line").attr("stroke","var(--blue)").attr("stroke-width",1)
@@ -133,7 +188,7 @@ histPeak.append("text").attr("class","peak-label")
   .attr("fill","var(--blue)")
   .attr("font-family","'IBM Plex Mono',monospace")
   .attr("font-size","10px")
-  .text("Hist. runoff peak");
+  .text("Hist. melt peak");
 
 const projPeak = root.append("g").attr("class","peak-proj").attr("opacity",0);
 projPeak.append("line").attr("stroke","var(--red)").attr("stroke-width",1)
@@ -142,21 +197,32 @@ projPeak.append("text").attr("class","peak-label")
   .attr("fill","var(--red)")
   .attr("font-family","'IBM Plex Mono',monospace")
   .attr("font-size","10px")
-  .text("Proj. runoff peak");
+  .text("Proj. melt peak");
 
+// "peak shifts ~N month(s) earlier" annotation (arrow points to the earlier peak).
+const peakShift = root.append("g").attr("class","peak-shift").attr("opacity",0);
+peakShift.append("line").attr("class","peak-shift-line")
+  .attr("stroke","var(--text)").attr("stroke-width",1)
+  .attr("marker-start","url(#arrow-shift)");
+peakShift.append("text").attr("class","peak-shift-label")
+  .attr("fill","var(--text)")
+  .attr("font-family","'IBM Plex Mono',monospace")
+  .attr("font-size","10px").attr("text-anchor","middle");
+
+// melt → demand horizontal offset bracket.
 const gapAnnotation = root.append("g").attr("class","gap-annotation").attr("opacity",0);
-gapAnnotation.append("line").attr("class","gap-h-proj")
+gapAnnotation.append("line").attr("class","gap-measure")
   .attr("stroke","var(--red)").attr("stroke-width",1.2);
-gapAnnotation.append("line").attr("class","gap-h-demand")
-  .attr("stroke","var(--demand)").attr("stroke-width",1.2);
+gapAnnotation.append("line").attr("class","gap-tick-left")
+  .attr("stroke","var(--red)").attr("stroke-width",1.2);
+gapAnnotation.append("line").attr("class","gap-tick-right")
+  .attr("stroke","var(--red)").attr("stroke-width",1.2);
 gapAnnotation.append("text").attr("class","gap-label")
   .attr("font-family","'IBM Plex Mono',monospace")
   .attr("font-size","10px").attr("fill","var(--red)")
-  .attr("text-anchor","middle")
-  .attr("dy","0.35em")
-  .text("Winter runoff → summer demand");
+  .attr("text-anchor","middle");
 
-// Hover hit targets — appended last so they sit on top of paths & annotations
+// Hover hit targets — appended last so they sit on top of paths & annotations.
 const tooltipTargets = root.append("g").attr("class","tooltip-targets");
 
 function placePeakLabel(textSel, px, py, iW) {
@@ -187,14 +253,6 @@ function placePeakLabel(textSel, px, py, iW) {
 // ---- Tooltip (hover interaction) ----
 const MONTH_FULL = ["JANUARY","FEBRUARY","MARCH","APRIL","MAY","JUNE",
   "JULY","AUGUST","SEPTEMBER","OCTOBER","NOVEMBER","DECEMBER"];
-const DAYS_IN_MONTH = [31,28,31,30,31,30,31,31,30,31,30,31];
-const SECONDS_PER_DAY = 86400;
-
-// mrro is a flux (kg m^-2 s^-1); multiply by the month's seconds to get a
-// monthly runoff depth in mm (1 kg/m^2 = 1 mm of water).
-function fluxToMonthlyMm(flux, monthIdx) {
-  return flux * DAYS_IN_MONTH[monthIdx] * SECONDS_PER_DAY;
-}
 
 function demandPhase(monthIdx) {
   if ([10,11,0,1,2,3].includes(monthIdx)) return "Low — winter dormancy";
@@ -213,8 +271,11 @@ function metaFor(series, monthIdx) {
 
 // Only show a tooltip for a series the chart is currently displaying.
 function isSeriesVisible(series) {
-  if (series === "demand") return true;
-  const className = series === "historical" ? "hist-line" : "proj-line";
+  const className = series === "historical" ? "hist-line"
+    : series === "projected" ? "proj-line"
+    : series === "demand" ? "demand-line"
+    : null;
+  if (!className) return false;
   const path = svg.select(`.${className}`);
   if (path.empty()) return false;
   return +path.attr("opacity") > 0.1;
@@ -234,20 +295,19 @@ function tooltipHtml(series, monthIdx) {
   }
 
   const meta = metaFor(series, monthIdx);
-  const mm = meta
-    ? Math.max(0, Math.round(fluxToMonthlyMm(meta.mean_kgm2, monthIdx)))
-    : null;
-  const mmLine = mm !== null ? `<div class="tt-primary">${mm} mm</div>` : "";
+  const mmLine = meta
+    ? `<div class="tt-primary">${(meta.mean_kgm2 * SECONDS_PER_DAY).toFixed(2)} mm/day</div>`
+    : "";
+  const selfLine = meta && Number.isFinite(meta.self_index)
+    ? `<div class="tt-secondary">${Math.round(meta.self_index)}% of its own peak</div>`
+    : "";
+  const count = meta ? `${meta.model_count}-model ensemble · GFDL-CM4, GFDL-ESM4` : "";
 
   if (series === "historical") {
-    const pct = Math.round(Math.max(0, historical[monthIdx]));
-    const count = meta
-      ? (meta.model_count === 1 ? "1 model" : `${meta.model_count}-model ensemble mean`)
-      : "";
     return `
-      <div class="tt-eyebrow"><span class="tt-month">${month}</span> · SNOWMELT RUNOFF</div>
+      <div class="tt-eyebrow"><span class="tt-month">${month}</span> · SNOWMELT</div>
       ${mmLine}
-      <div class="tt-secondary">${pct}% of annual maximum</div>
+      ${selfLine}
       <div class="tt-footer">
         <div class="tt-footer-line">Historical · 1970–2000</div>
         <div class="tt-footer-line">${count}</div>
@@ -255,16 +315,12 @@ function tooltipHtml(series, monthIdx) {
   }
 
   // projected (SSP5-8.5)
-  const pct = Math.round(Math.max(0, projected[monthIdx]));
-  const count = meta
-    ? (meta.model_count === 1 ? "1 model: IPSL-CM6A-LR" : `${meta.model_count}-model ensemble mean`)
-    : "";
   return `
     <div class="tt-eyebrow"><span class="tt-month">${month}</span> · PROJECTED · SSP5-8.5</div>
     ${mmLine}
-    <div class="tt-secondary">${pct}% of historical maximum</div>
+    ${selfLine}
     <div class="tt-footer">
-      <div class="tt-footer-line">2050–2075</div>
+      <div class="tt-footer-line">Projected · 2070–2100</div>
       <div class="tt-footer-line">${count}</div>
     </div>`;
 }
@@ -305,6 +361,10 @@ function hideTooltip() {
   tt.setAttribute("aria-hidden", "true");
 }
 
+// Water-year positions of each peak (set in draw, consumed by applyVisibility).
+let histPeakPos = -1;
+let projPeakPos = -1;
+
 // Draw/update chart
 function draw() {
   const width = W();
@@ -318,6 +378,24 @@ function draw() {
   if (iW <= 0 || iH <= 0) return;
 
   x.range([0, iW]);
+
+  const hist = scenarioData.historical;
+  const proj = scenarioData.projected;
+  const histPts = hist ? waterYearPoints(hist) : null;
+  const projPts = proj ? waterYearPoints(proj) : null;
+  const demandPts = demandWaterYearPoints();
+
+  // Dynamic y-domain by mode. Raw is based on hist+proj (historical dominates, so
+  // the axis stays put as projected fades in); normalized maxes at 100.
+  if (normalize) {
+    y.domain([0, 110]);
+  } else {
+    const vals = [];
+    if (histPts) histPts.forEach((p) => vals.push(p.value));
+    if (projPts) projPts.forEach((p) => vals.push(p.value));
+    const vmax = vals.length ? d3.max(vals) : 1;
+    y.domain([0, vmax * 1.1]).nice();
+  }
   y.range([iH, 0]);
 
   gridG.selectAll("line").data(y.ticks(5)).join("line")
@@ -333,54 +411,45 @@ function draw() {
       .attr("font-size","11px")
       .attr("font-family","'IBM Plex Mono',monospace"));
 
-  yAxisG.call(d3.axisLeft(y).ticks(5).tickFormat(d=>d+"%").tickSize(0).tickPadding(8))
+  const yTickFormat = normalize ? ((d) => `${d}`) : d3.format(".2f");
+  yAxisG.call(d3.axisLeft(y).ticks(5).tickFormat(yTickFormat).tickSize(0).tickPadding(8))
     .call(g => g.select(".domain").remove())
     .call(g => g.selectAll("text")
       .attr("fill","var(--text-dim)")
       .attr("font-size","10px")
       .attr("font-family","'IBM Plex Mono',monospace"));
 
-  demandAreaPath.attr("d", area(demand))
-    .attr("fill","var(--demand-dim)");
-  demandLinePath.attr("d", line(demand))
+  yAxisTitle.attr("x", -iH / 2).attr("y", -(MARGIN.left - 14))
+    .text(normalize ? "% of each curve's own peak" : "snowmelt (mm/day)");
+  xAxisTitle.attr("x", iW / 2).attr("y", iH + 34);
+
+  demandAreaPath.attr("d", area(demandPts)).attr("fill","var(--demand-dim)");
+  demandLinePath.attr("d", line(demandPts))
     .attr("fill","none")
     .attr("stroke","var(--demand)")
     .attr("stroke-width",2)
-    .attr("stroke-dasharray","5 4")
-    .attr("opacity",0.7);
+    .attr("stroke-dasharray","5 4");
 
-  if (historical && projected) {
-    histAreaPath
-      .attr("d", area(historical))
-      .attr("fill","var(--blue-dim)")
-      .attr("opacity", 1);
-    histLinePath
-      .attr("d", line(historical))
-      .attr("fill","none")
-      .attr("stroke","var(--blue)")
-      .attr("stroke-width",2.5)
-      .attr("opacity", 1);
-
-    projAreaPath
-      .attr("d", area(projected))
-      .attr("fill","var(--red-dim)");
-    projLinePath
-      .attr("d", line(projected))
-      .attr("fill","none")
-      .attr("stroke","var(--red)")
-      .attr("stroke-width",2.5);
+  if (histPts) {
+    histAreaPath.attr("d", area(histPts)).attr("fill","var(--blue-dim)").attr("opacity",1);
+    histLinePath.attr("d", line(histPts)).attr("fill","none")
+      .attr("stroke","var(--blue)").attr("stroke-width",2.5).attr("opacity",1);
+  }
+  if (projPts) {
+    projAreaPath.attr("d", area(projPts)).attr("fill","var(--red-dim)");
+    projLinePath.attr("d", line(projPts)).attr("fill","none")
+      .attr("stroke","var(--red)").attr("stroke-width",2.5);
   }
 
-  // Hover hit targets — one transparent circle per (series, month) point.
-  // Projected is appended first (beneath) so the always-visible demand and
-  // historical targets win where points overlap.
+  // Hover hit targets — built from water-year arrays, carrying calendar monthIdx
+  // for the metadata lookup. Demand targets exist only in normalized mode.
   const targetData = [];
-  if (projected) projected.forEach((v, i) =>
-    targetData.push({ series: "projected", month: i, cx: x(MONTHS[i]), cy: y(v) }));
-  demand.forEach((v, i) =>
-    targetData.push({ series: "demand", month: i, cx: x(MONTHS[i]), cy: y(Math.max(0, v)) }));
-  if (historical) historical.forEach((v, i) =>
-    targetData.push({ series: "historical", month: i, cx: x(MONTHS[i]), cy: y(v) }));
+  if (projPts) projPts.forEach((p) =>
+    targetData.push({ series:"projected", monthIdx:p.monthIdx, cx:x(p.label), cy:y(p.value) }));
+  if (normalize) demandPts.forEach((p) =>
+    targetData.push({ series:"demand", monthIdx:p.monthIdx, cx:x(p.label), cy:y(p.value) }));
+  if (histPts) histPts.forEach((p) =>
+    targetData.push({ series:"historical", monthIdx:p.monthIdx, cx:x(p.label), cy:y(p.value) }));
 
   tooltipTargets.selectAll("circle")
     .data(targetData)
@@ -391,73 +460,76 @@ function draw() {
     .attr("fill", "transparent")
     .attr("stroke", "none")
     .attr("data-series", (d) => d.series)
-    .attr("data-month", (d) => d.month)
+    .attr("data-month", (d) => d.monthIdx)
     .on("mouseenter", (event, d) => {
       if (!isSeriesVisible(d.series)) return;
-      showTooltip(event, d.series, d.month);
+      showTooltip(event, d.series, d.monthIdx);
     })
     .on("mousemove", (event) => positionTooltip(event))
     .on("mouseleave", hideTooltip);
 
-  if (!historical || !projected) return;
+  if (!histPts || !projPts) { histPeakPos = -1; projPeakPos = -1; return; }
 
-  const histPeakIdx = historical.indexOf(Math.max(...historical));
-  const projPeakIdx = projected.indexOf(Math.max(...projected));
+  // Peaks = max-value point of each scenario's water-year array.
+  const histPk = histPts.reduce((a, b) => (b.value > a.value ? b : a));
+  const projPk = projPts.reduce((a, b) => (b.value > a.value ? b : a));
+  histPeakPos = histPk.pos;
+  projPeakPos = projPk.pos;
 
-  const hpx = x(MONTHS[histPeakIdx]);
-  const ppx = x(MONTHS[projPeakIdx]);
+  const hpx = x(histPk.label), ppx = x(projPk.label);
+  const histY = y(histPk.value), projY = y(projPk.value);
 
-  const histY = y(historical[histPeakIdx]);
-  const projY = y(projected[projPeakIdx]);
+  histPeak.select("line").attr("x1",hpx).attr("x2",hpx).attr("y1",histY).attr("y2",iH);
+  projPeak.select("line").attr("x1",ppx).attr("x2",ppx).attr("y1",projY).attr("y2",iH);
+
+  // When the two peak months are adjacent, splay the labels outward so they don't
+  // collide (projected label to the left of its peak, historical to the right).
   const peaksClose = Math.abs(hpx - ppx) < iW * 0.14;
+  if (peaksClose) {
+    projPeak.select("text").attr("text-anchor","end")
+      .attr("x", ppx - 6).attr("y", projY).attr("dy","-10px");
+    histPeak.select("text").attr("text-anchor","start")
+      .attr("x", hpx + 6).attr("y", histY).attr("dy","-10px");
+  } else {
+    placePeakLabel(histPeak.select("text"), hpx, histY, iW);
+    placePeakLabel(projPeak.select("text"), ppx, projY, iW);
+  }
 
-  histPeak.select("line")
-    .attr("x1",hpx).attr("x2",hpx)
-    .attr("y1",histY).attr("y2",iH);
-  projPeak.select("line")
-    .attr("x1",ppx).attr("x2",ppx)
-    .attr("y1",projY).attr("y2",iH);
+  // Peak-shift annotation: line from the projected (earlier) peak to the historical
+  // peak, arrow on the earlier end, label centered just above the higher peak.
+  const monthsShift = histPk.pos - projPk.pos;
+  if (monthsShift !== 0) {
+    const peakTop = Math.min(histY, projY);
+    const shiftY = Math.max(14, peakTop - 16);
+    peakShift.select("line")
+      .attr("x1", ppx).attr("y1", shiftY)
+      .attr("x2", hpx).attr("y2", shiftY);
+    peakShift.select("text")
+      .attr("x", (ppx + hpx) / 2).attr("y", shiftY - 5)
+      .text(`peak shifts ~${Math.abs(monthsShift)} month${Math.abs(monthsShift) > 1 ? "s" : ""} earlier`);
+  }
 
-  const demandPeakIdx = demand.indexOf(Math.max(...demand));
-  const demandPeakX = x(MONTHS[demandPeakIdx]);
-  const yDemandPeak = y(demand[demandPeakIdx]);
-  const x0 = Math.min(ppx, demandPeakX);
-  const x1 = Math.max(ppx, demandPeakX);
-  const yTop = Math.min(projY, yDemandPeak);
-  const bandHeight = Math.abs(yDemandPeak - projY);
+  // melt → demand offset. The shaded band spans the projected melt peak to the
+  // demand peak (full height); the bracket measures that gap in months.
+  const demandPk = demandPts.reduce((a, b) => (b.value > a.value ? b : a));
+  const dpx = x(demandPk.label);
+  const gx0 = Math.min(ppx, dpx), gx1 = Math.max(ppx, dpx);
 
   gapBand.select(".gap-band")
-    .attr("x", x0)
-    .attr("y", yTop)
-    .attr("width", Math.max(x1 - x0, 1))
-    .attr("height", Math.max(bandHeight, 1));
+    .attr("x", gx0).attr("y", 0)
+    .attr("width", Math.max(gx1 - gx0, 1)).attr("height", iH);
 
-  gapAnnotation.select(".gap-h-proj")
-    .attr("x1", x0).attr("x2", x1)
-    .attr("y1", projY).attr("y2", projY);
-
-  gapAnnotation.select(".gap-h-demand")
-    .attr("x1", x0).attr("x2", x1)
-    .attr("y1", yDemandPeak).attr("y2", yDemandPeak);
-
-  const gapLabelX = x0 + (x1 - x0) * 0.62;
-  const gapLabelY = bandHeight > 28
-    ? yTop + bandHeight / 2
-    : projY + 18;
-
+  const bracketY = Math.round(iH * 0.30);
+  gapAnnotation.select(".gap-measure")
+    .attr("x1", gx0).attr("x2", gx1).attr("y1", bracketY).attr("y2", bracketY);
+  gapAnnotation.select(".gap-tick-left")
+    .attr("x1", gx0).attr("x2", gx0).attr("y1", bracketY - 4).attr("y2", bracketY + 4);
+  gapAnnotation.select(".gap-tick-right")
+    .attr("x1", gx1).attr("x2", gx1).attr("y1", bracketY - 4).attr("y2", bracketY + 4);
+  const offMonths = Math.abs(demandPk.pos - projPk.pos);
   gapAnnotation.select(".gap-label")
-    .attr("x", gapLabelX)
-    .attr("y", gapLabelY);
-
-  placePeakLabel(histPeak.select("text"), hpx, histY, iW);
-  const projText = projPeak.select("text");
-  placePeakLabel(projText, ppx, yTop, iW);
-  projText.attr("dy", "-14px");
-  if (peaksClose) {
-    const dy = parseFloat(projText.attr("dy")) || -14;
-    projText.attr("dy", `${dy - 18}px`);
-    histPeak.select("text").attr("dy", "-32px");
-  }
+    .attr("x", (gx0 + gx1) / 2).attr("y", bracketY - 7)
+    .text(`~${offMonths} months: winter melt → summer demand`);
 }
 
 window.addEventListener("resize", draw);
@@ -468,74 +540,83 @@ if (typeof ResizeObserver !== "undefined") {
   chartObserver.observe(svg.node());
 }
 
-// Scrollytelling states
+// Scrollytelling
 const steps = document.querySelectorAll(".step");
 const dots  = document.querySelectorAll(".dot");
 
-const states = {
-  0: () => {
-    projAreaPath.transition().duration(500).attr("opacity",0);
-    projLinePath.transition().duration(500).attr("opacity",0);
-    projPeak.transition().duration(400).attr("opacity",0);
-    histPeak.transition().duration(400).attr("opacity",0);
-    gapBand.transition().duration(400).attr("opacity",0);
-    gapAnnotation.transition().duration(400).attr("opacity",0);
-    d3.select("#legend-future").style("opacity","0");
-  },
-  1: () => {
-    projAreaPath.transition().duration(500).attr("opacity",0);
-    projLinePath.transition().duration(500).attr("opacity",0);
-    projPeak.transition().duration(400).attr("opacity",0);
-    histPeak.transition().duration(600).attr("opacity",1);
-    gapBand.transition().duration(400).attr("opacity",0);
-    gapAnnotation.transition().duration(400).attr("opacity",0);
-    d3.select("#legend-future").style("opacity","0");
-  },
-  2: () => {
-    projAreaPath.transition().duration(700).attr("opacity",1);
-    projLinePath.transition().duration(700).attr("opacity",1);
-    projPeak.transition().duration(600).attr("opacity",1);
-    histPeak.transition().duration(600).attr("opacity",1);
-    gapBand.transition().duration(700).delay(200).attr("opacity",1);
-    gapAnnotation.transition().duration(800).delay(400).attr("opacity",1);
-    d3.select("#legend-future").style("opacity","1");
-  },
-  3: () => {
-    projAreaPath.transition().duration(400).attr("opacity",1);
-    projLinePath.transition().duration(400).attr("opacity",1);
-    projPeak.transition().duration(400).attr("opacity",1);
-    histPeak.transition().duration(400).attr("opacity",1);
-    gapBand.transition().duration(500).attr("opacity",1);
-    gapAnnotation.transition().duration(400).attr("opacity",1);
-    d3.select("#legend-future").style("opacity","1");
-  }
+let currentStep = 0;
+
+// Per-step visibility + preferred mode. normalized=false means the step prefers
+// raw mm/day. A manual toggle overrides until the next step boundary re-applies.
+const STEP_CONFIG = {
+  0: { proj:false, histPeak:false, projPeak:false, shift:false, demand:false, normalized:true  },
+  1: { proj:false, histPeak:true,  projPeak:false, shift:false, demand:false, normalized:true  },
+  2: { proj:true,  histPeak:true,  projPeak:true,  shift:true,  demand:false, normalized:true  },
+  3: { proj:true,  histPeak:true,  projPeak:true,  shift:true,  demand:false, normalized:false },
+  4: { proj:true,  histPeak:true,  projPeak:true,  shift:true,  demand:true,  normalized:true  },
 };
 
-let currentStep = 0;
+function applyVisibility(animate) {
+  const cfg = STEP_CONFIG[currentStep] || STEP_CONFIG[0];
+  const both = !!(scenarioData.historical && scenarioData.projected);
+  const projShown   = cfg.proj && both;
+  const histPkShown = cfg.histPeak && !!scenarioData.historical;
+  const projPkShown = cfg.projPeak && projShown;
+  const shiftShown  = cfg.shift && projShown && histPeakPos >= 0 && histPeakPos !== projPeakPos;
+  const demandShown = cfg.demand && normalize;
+
+  const tt = (sel, dur) => (animate ? sel.transition().duration(dur) : sel);
+
+  tt(projAreaPath, 700).attr("opacity", projShown ? 1 : 0);
+  tt(projLinePath, 700).attr("opacity", projShown ? 1 : 0);
+  tt(histPeak, 500).attr("opacity", histPkShown ? 1 : 0);
+  tt(projPeak, 500).attr("opacity", projPkShown ? 1 : 0);
+  tt(peakShift, 500).attr("opacity", shiftShown ? 1 : 0);
+  tt(demandAreaPath, 700).attr("opacity", demandShown ? 1 : 0);
+  tt(demandLinePath, 700).attr("opacity", demandShown ? 0.7 : 0);
+  tt(gapBand, 700).attr("opacity", demandShown ? 1 : 0);
+  tt(gapAnnotation, 800).attr("opacity", demandShown ? 1 : 0);
+
+  d3.select("#legend-future").style("opacity", projShown ? "1" : "0");
+  d3.select("#legend-demand").style("opacity", demandShown ? "1" : "0");
+}
 
 function setStep(i) {
   currentStep = i;
-  dots.forEach((d,j) => d.classList.toggle("active", j===i));
-  if (states[i]) states[i]();
+  dots.forEach((d, j) => d.classList.toggle("active", j === i));
+  const cfg = STEP_CONFIG[i] || STEP_CONFIG[0];
+  normalize = cfg.normalized; // apply the step's preferred mode
+  const tog = document.getElementById("normalize-toggle");
+  if (tog) tog.checked = normalize;
+  draw();
+  applyVisibility(true);
+}
+
+// Normalize toggle — manual override of the current mode.
+const normalizeToggle = document.getElementById("normalize-toggle");
+if (normalizeToggle) {
+  normalizeToggle.addEventListener("change", (e) => {
+    normalize = e.target.checked;
+    draw();
+    applyVisibility(false);
+  });
 }
 
 // Intersection observer
 const observer = new IntersectionObserver((entries) => {
-  entries.forEach(entry => {
+  entries.forEach((entry) => {
     if (entry.isIntersecting) {
-      const i = +entry.target.dataset.step;
-      setStep(i);
+      setStep(+entry.target.dataset.step);
     }
   });
 }, { threshold: 0.5 });
 
-steps.forEach(s => observer.observe(s));
+steps.forEach((s) => observer.observe(s));
 
 // Progress dot navigation
-dots.forEach(d => {
+dots.forEach((d) => {
   d.addEventListener("click", () => {
-    const i = +d.dataset.step;
-    steps[i].scrollIntoView({ behavior:"smooth", block:"center" });
+    steps[+d.dataset.step].scrollIntoView({ behavior:"smooth", block:"center" });
   });
 });
 
@@ -554,12 +635,9 @@ if (window.location.protocol === "file:") {
   loadSnowProfiles()
     .then((profiles) => {
       hideLoadError();
-      historical = profiles.historical;
-      projected = profiles.projected;
-      console.info("Loaded snow profiles from", DATA_URL, {
-        historical,
-        projected,
-      });
+      scenarioData.historical = profiles.historical;
+      scenarioData.projected = profiles.projected;
+      console.info("Loaded snow profiles from", DATA_URL, scenarioData);
       draw();
       setStep(currentStep);
     })
@@ -567,7 +645,7 @@ if (window.location.protocol === "file:") {
       console.error("Failed to load snow profile CSV:", err);
       const fileHint = err.message === "FILE_PROTOCOL"
         ? "Use <code>python3 -m http.server 5500</code> instead of opening the HTML file directly."
-        : `Check that <code>data/sierra_melt_timing_profiles.csv</code> exists and the dev server is running.`;
+        : `Check that <code>data/sierra_snowmelt_profiles.csv</code> exists and the dev server is running.`;
       showLoadError(
         "Could not load snowpack CSV. " + fileHint
       );
