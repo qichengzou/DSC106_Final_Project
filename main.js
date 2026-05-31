@@ -594,7 +594,15 @@ async function loadSWEData() {
   }));
 }
 
-(function initScene2() {
+async function initScene2() {
+  await loadSWEData();
+  const meanX = d3.mean(S2_DATA, d => d.year);
+  const meanY = d3.mean(S2_DATA, d => d.anomaly);
+  const num = d3.sum(S2_DATA, d => (d.year - meanX) * (d.anomaly - meanY));
+  const den = d3.sum(S2_DATA, d => (d.year - meanX) ** 2);
+  const trendSlope = { m: num / den, b: 0 };
+  trendSlope.b = meanY - trendSlope.m * meanX;
+  
   const svg2 = d3.select("#scene2-svg");
   const slider = document.getElementById("scene2-slider");
   const yearVal = document.getElementById("scene2-year-val");
@@ -606,17 +614,6 @@ async function loadSWEData() {
 
   const x2 = d3.scaleLinear().domain([1950, 2023]);
   const y2 = d3.scaleLinear().domain([-30, 32]);
-
-  const trendSlope = (function () {
-    const n = S2_DATA.length;
-    const meanX = d3.mean(S2_DATA, d => d.year);
-    const meanY = d3.mean(S2_DATA, d => d.anomaly);
-    const num = d3.sum(S2_DATA, d => (d.year - meanX) * (d.anomaly - meanY));
-    const den = d3.sum(S2_DATA, d => (d.year - meanX) ** 2);
-    const m = num / den;
-    const b = meanY - m * meanX;
-    return { m, b };
-  })();
 
   const svgNode = svg2.node();
 
@@ -798,4 +795,6 @@ async function loadSWEData() {
   setup2();
   const ro2 = new ResizeObserver(() => setup2());
   ro2.observe(svgNode);
-})();
+}
+
+initScene2();
