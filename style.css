@@ -62,25 +62,6 @@ body {
   margin-bottom: 1.5rem;
 }
 
-.chart-controls {
-  margin: 0.25rem 0 0.5rem;
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.7rem;
-  color: var(--text-dim);
-}
-
-.chart-controls label {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
-  cursor: pointer;
-  user-select: none;
-}
-
-.chart-controls input[type="checkbox"] {
-  accent-color: var(--blue);
-}
-
 #chart-load-error {
   display: none;
   font-family: 'IBM Plex Mono', monospace;

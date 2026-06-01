@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Shrinking Snowpack — STORY SCAFFOLD (narrative + viz slots)</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<!-- Reuses the project's existing theme (colors, fonts, layout classes). -->
+<link rel="stylesheet" href="style.css">
+<style>
+/* ============================================================ */
+/* SCAFFOLD-ONLY STYLES                                         */
+/* These style the team-facing banner and the empty viz slots.  */
+/* Delete this <style> block (and the .scaffold-note banner)    */
+/* when the scaffold is merged into the real index.html.        */
+/* ============================================================ */
+
+.scaffold-note {
+  position: sticky; top: 0; z-index: 300;
+  background: #1c2530; border-bottom: 1px solid var(--rule);
+  color: var(--text-dim);
+  font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; line-height: 1.5;
+  padding: 0.6rem 1.2rem; text-align: center;
+}
+.scaffold-note b { color: var(--blue); font-weight: 500; }
+
+/* Each scene = narrative column + viz slot, side by side */
+.scene-block {
+  display: flex; gap: 2.5rem; flex-wrap: wrap;
+  align-items: center; justify-content: center;
+  min-height: 92vh; padding: 6vh 3rem; max-width: 1180px; margin: 0 auto;
+  border-top: 1px solid var(--rule);
+}
+.scene-narr { flex: 1 1 320px; max-width: 400px; }
+.scene-viz  { flex: 1 1 460px; }
+
+/* Narrative card — mirrors the existing .step-inner look */
+.narr-card {
+  background: var(--bg-panel); border: 1px solid var(--rule);
+  border-radius: 2px; padding: 2rem;
+}
+
+/* The empty visualization placeholder */
+.viz-slot {
+  border: 1.5px dashed rgba(79,168,213,0.45); border-radius: 4px;
+  min-height: 58vh; padding: 1.5rem;
+  display: flex; flex-direction: column; gap: 0.9rem;
+  background: rgba(79,168,213,0.03);
+}
+.viz-slot.built { border-style: solid; border-color: rgba(120,196,89,0.5); background: rgba(120,196,89,0.04); }
+.viz-slot-tag {
+  font-family: 'IBM Plex Mono', monospace; font-size: 0.62rem; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--text-dim);
+  display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
+}
+.viz-slot-title {
+  font-family: 'Playfair Display', serif; font-size: 1.1rem; color: var(--text);
+}
+.viz-slot ul { list-style: none; font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; line-height: 1.85; color: var(--text-dim); }
+.viz-slot ul b { color: var(--text); font-weight: 500; }
+.viz-mount {
+  flex: 1; min-height: 180px; display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--rule); border-radius: 3px;
+  color: var(--text-dim); font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem;
+  text-align: center; padding: 1rem;
+}
+
+/* Status pills */
+.pill { padding: 0.1rem 0.55rem; border-radius: 999px; font-size: 0.6rem; letter-spacing: 0.06em; }
+.pill.obs   { background: rgba(120,196,89,0.18); color: #9fe1cb; }
+.pill.mod   { background: rgba(79,168,213,0.18); color: var(--blue); }
+.pill.ill   { background: rgba(200,185,122,0.18); color: var(--demand); }
+.pill.built { background: rgba(120,196,89,0.22); color: #97c459; }
+.pill.todo  { background: rgba(224,90,74,0.18); color: var(--red); }
+.pill.owner { background: rgba(255,255,255,0.06); color: var(--text); }
+
+.video-slot {
+  border: 1.5px dashed rgba(200,185,122,0.45); border-radius: 4px;
+  max-width: 560px; margin: 2rem auto 0; padding: 1.5rem;
+  font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; color: var(--text-dim);
+}
+</style>
+</head>
+<body>
+
+<!-- ░░ DELETE THIS BANNER BEFORE PUBLISHING ░░ -->
+<div class="scaffold-note">
+  <b>STORY SCAFFOLD</b> — narrative is written; each dashed box is a visualization slot for a teammate to fill.
+  Claim a slot by putting your name in <b>OWNER</b>. This is a separate file — merge into <b>index.html</b> when ready.
+</div>
+
+<!-- Progress dots: hook + 6 scenes + close -->
+<nav id="progress">
+  <div class="dot active" data-step="0"></div>
+  <div class="dot" data-step="1"></div>
+  <div class="dot" data-step="2"></div>
+  <div class="dot" data-step="3"></div>
+  <div class="dot" data-step="4"></div>
+  <div class="dot" data-step="5"></div>
+  <div class="dot" data-step="6"></div>
+  <div class="dot" data-step="7"></div>
+</nav>
+
+<!-- ============================================================ -->
+<!-- HOOK / INTRO                                                 -->
+<!-- ============================================================ -->
+<section class="full-section" data-scene="0">
+  <div class="intro-inner">
+    <h1>The Peak Comes Early</h1>
+    <p>The American West's water shows up months before anyone can use it — and warming is widening that gap. CMIP6 models show the Sierra Nevada's snowmelt arriving earlier in the year and carrying far less water.</p>
+    <div class="scroll-cue">↓ scroll to explore</div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SCENE 1 · THE CAUSE                                          -->
+<!-- ============================================================ -->
+<section class="scene-block" data-scene="1">
+  <div class="scene-narr">
+    <div class="narr-card">
+      <div class="step-tag">Scene 1 of 6 · The cause · AND</div>
+      <div class="step-head">It's not how much falls.<br>It's <em>what</em> falls — and when it melts</div>
+      <div class="step-body">
+        The Sierra's cold season sits close to freezing. That balance point is everything: a few degrees of warming flips more winter precipitation from snow to rain, and melts the snow that does fall <strong>earlier and faster</strong>. The mountain isn't getting less weather — it's getting less <strong>storage</strong>.
+        <div class="callout">Near 0&deg;C, small warming = big change<br>Cold-season temp &rarr; rain vs. snow<br>Spring temp &rarr; melt timing</div>
+      </div>
+    </div>
+  </div>
+  <div class="scene-viz">
+    <div class="viz-slot">
+      <div class="viz-slot-tag">
+        <span>Visualization slot</span>
+        <span class="pill ill">illustrative</span>
+        <span class="pill todo">to build</span>
+        <span class="pill owner">OWNER: _______</span>
+      </div>
+      <div class="viz-slot-title">Interactive "rising snow line"</div>
+      <ul>
+        <li><b>Idea:</b> mountain silhouette + a freezing line that lifts as temperature rises</li>
+        <li><b>Encodings:</b> elevation = position, snow/rain = area, color (white snow / blue rain)</li>
+        <li><b>Interaction:</b> temperature slider &rarr; snow zone shrinks, live "% below freezing" readout</li>
+        <li><b>Data:</b> none required (illustrative). Optional: <b>tas</b> cold-season series w/ 0&deg;C line</li>
+        <li><b>Keep it short</b> — this is the lens, not the payoff</li>
+      </ul>
+      <div class="viz-mount" id="viz-scene-1">render here &nbsp;&middot;&nbsp; &lt;div id="viz-scene-1"&gt;</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SCENE 2 · THE DECLINE (observed SWE)                         -->
+<!-- ============================================================ -->
+<section class="scene-block" data-scene="2">
+  <div class="scene-narr">
+    <div class="narr-card">
+      <div class="step-tag">Scene 2 of 6 · The decline · BUT</div>
+      <div class="step-head">The reservoir is<br><em>already</em> shrinking</div>
+      <div class="step-body">
+        April 1 snowpack — the benchmark water managers use to budget the year's water — has trended downward across the Sierra since mid-century. This is the <strong>observed record, not a projection</strong>. Bars below the line are years that came up short. The decline is here.
+        <div class="callout">Observed 1950&ndash;2023 (DWR / NRCS)<br>~half the decline is attributable<br>to warming (Pierce &amp; Barnett 2008)</div>
+      </div>
+    </div>
+  </div>
+  <div class="scene-viz">
+    <div class="viz-slot built">
+      <div class="viz-slot-tag">
+        <span>Visualization slot</span>
+        <span class="pill obs">observed data</span>
+        <span class="pill built">built (teammate)</span>
+        <span class="pill owner">OWNER: _______</span>
+      </div>
+      <div class="viz-slot-title">April 1 snowpack (SWE) anomaly, 1950&ndash;2023</div>
+      <ul>
+        <li><b>Status:</b> built elsewhere — <b>import the chart + its data file into this repo</b></li>
+        <li><b>Type:</b> diverging bars vs. 1981&ndash;2010 mean; blue above / red-brown below; zero baseline</li>
+        <li><b>Encodings:</b> year = x position, anomaly = bar length + color</li>
+        <li><b>Annotate:</b> big drought years (e.g. 2015) and high years (2023); label it OBSERVED</li>
+        <li><b>Role:</b> the <b>volume</b> axis — earns trust before any model appears</li>
+      </ul>
+      <div class="viz-mount" id="viz-scene-2">render here &nbsp;&middot;&nbsp; &lt;div id="viz-scene-2"&gt;</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SCENE 3 · THE SHIFT (snm hydrograph) — ALREADY BUILT         -->
+<!-- ============================================================ -->
+<section class="scene-block" data-scene="3">
+  <div class="scene-narr">
+    <div class="narr-card">
+      <div class="step-tag">Scene 3 of 6 · The shift · BUT</div>
+      <div class="step-head">And it arrives<br><em>earlier</em></div>
+      <div class="step-body">
+        Warming changes <strong>when</strong> the water comes. On a water-year axis, the ensemble-mean melt peak slides from <strong>March to February</strong> — about a month earlier — and the whole curve shrinks by nearly half. Normalize each curve to isolate timing; switch to absolute units to see the volume collapse.
+        <div class="callout">Peak month: March &rarr; February<br>Peak melt: ~1.19 &rarr; ~0.61 mm/day<br>Apr&ndash;Jul share: 16% &rarr; 9%</div>
+      </div>
+    </div>
+  </div>
+  <div class="scene-viz">
+    <div class="viz-slot built">
+      <div class="viz-slot-tag">
+        <span>Visualization slot</span>
+        <span class="pill mod">model projection</span>
+        <span class="pill built">built (this repo)</span>
+        <span class="pill owner">OWNER: Aaron</span>
+      </div>
+      <div class="viz-slot-title">Water-year snowmelt hydrograph (normalize / raw morph)</div>
+      <ul>
+        <li><b>Status:</b> DONE — port the sticky chart from <b>index.html</b> + <b>main.js</b> into this slot</li>
+        <li><b>Type:</b> hydrograph, Oct&rarr;Sep; historical (blue) vs SSP5-8.5 (red); vertical peak markers</li>
+        <li><b>Interaction:</b> normalize/raw toggle (timing vs volume) + hover tooltips</li>
+        <li><b>Data:</b> <b>snm</b>, 2 models (GFDL-CM4, GFDL-ESM4) — note caveat in a footnote</li>
+        <li><b>Decision:</b> move the demand-mismatch overlay OUT to Scene 5, keep this scene = the shift</li>
+      </ul>
+      <div class="viz-mount" id="viz-scene-3">render here &nbsp;&middot;&nbsp; &lt;div id="viz-scene-3"&gt; (sticky chart from main.js)</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SCENE 4 · THE DEPENDENCY (river map)                         -->
+<!-- ============================================================ -->
+<section class="scene-block" data-scene="4">
+  <div class="scene-narr">
+    <div class="narr-card">
+      <div class="step-tag">Scene 4 of 6 · The plumbing</div>
+      <div class="step-head">This snow isn't abstract —<br>it's the <em>plumbing</em></div>
+      <div class="step-body">
+        Meltwater from these peaks feeds the <strong>Sacramento and San Joaquin rivers</strong>, which converge in the Delta and irrigate the Central Valley — one of the most productive farming regions on earth. Change the melt, and every link downstream feels it.
+        <div class="callout">Sierra snow &rarr; rivers &rarr; Delta<br>&rarr; Central Valley farms &amp; cities<br>(visual bridge to the stakes)</div>
+      </div>
+    </div>
+  </div>
+  <div class="scene-viz">
+    <div class="viz-slot">
+      <div class="viz-slot-tag">
+        <span>Visualization slot</span>
+        <span class="pill ill">geographic</span>
+        <span class="pill todo">to build</span>
+        <span class="pill owner">OWNER: _______</span>
+      </div>
+      <div class="viz-slot-title">California map with animated river flow</div>
+      <ul>
+        <li><b>Type:</b> d3-geo map; Sierra shaded; Sacramento + San Joaquin paths into the valley</li>
+        <li><b>Interaction:</b> scroll-driven flow particles; optional flow width thins toward the future</li>
+        <li><b>Data:</b> public GeoJSON (Natural Earth / USGS) — NOT synthetic; flow widths illustrative</li>
+        <li><b>Role:</b> transition scene — makes the curves concrete, sets up Scene 5</li>
+        <li><b>Caution:</b> don't print a flow number you haven't modeled</li>
+      </ul>
+      <div class="viz-mount" id="viz-scene-4">render here &nbsp;&middot;&nbsp; &lt;div id="viz-scene-4"&gt;</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SCENE 5 · THE CONSEQUENCE (melt vs demand)                   -->
+<!-- ============================================================ -->
+<section class="scene-block" data-scene="5">
+  <div class="scene-narr">
+    <div class="narr-card">
+      <div class="step-tag">Scene 5 of 6 · The consequence · THEREFORE</div>
+      <div class="step-head">Earlier and smaller —<br>still out of step with <em>summer</em></div>
+      <div class="step-body">
+        California's farms draw the most water in <strong>mid-to-late summer</strong>, months after the melt peak. Reservoirs exist to bridge that gap. A pulse that's now earlier <em>and</em> smaller means more of the year's water must be captured and stored, with less margin in dry years. The mismatch doesn't guarantee shortage — but it <strong>raises the stress</strong> on every buffer in the system.
+        <div class="callout">Melt peak: Feb&ndash;Mar &nbsp;|&nbsp; Demand peak: ~July<br>~30% of CA water begins as Sierra snow<br>Frame as RISK, not certain shortage</div>
+      </div>
+    </div>
+  </div>
+  <div class="scene-viz">
+    <div class="viz-slot">
+      <div class="viz-slot-tag">
+        <span>Visualization slot</span>
+        <span class="pill mod">melt: real</span>
+        <span class="pill ill">demand: illustrative</span>
+        <span class="pill todo">to build</span>
+        <span class="pill owner">OWNER: _______</span>
+      </div>
+      <div class="viz-slot-title">Melt vs. demand overlay with shaded gap</div>
+      <ul>
+        <li><b>Type:</b> the melt curve (earlier/smaller) vs. summer demand curve; shade the GAP between them</li>
+        <li><b>Encodings:</b> month = x, value = y, gap = filled area (the widening distance is the point)</li>
+        <li><b>Data:</b> melt = real <b>snm</b>; demand = illustrative array — <b>label it clearly</b></li>
+        <li><b>Support:</b> 1&ndash;2 cited context facts (Sierra share of water, Central Valley output)</li>
+        <li><b>Note:</b> this is the overlay relocated from Scene 3</li>
+      </ul>
+      <div class="viz-mount" id="viz-scene-5">render here &nbsp;&middot;&nbsp; &lt;div id="viz-scene-5"&gt;</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- SCENE 6 · TWO FUTURES (the choice)                           -->
+<!-- ============================================================ -->
+<section class="scene-block" data-scene="6">
+  <div class="scene-narr">
+    <div class="narr-card">
+      <div class="step-tag">Scene 6 of 6 · The choice · THEREFORE</div>
+      <div class="step-head">How bad<br>depends on <em>us</em></div>
+      <div class="step-body">
+        These outcomes aren't fixed. Under moderate emissions (<strong>SSP2-4.5</strong>) the melt still shifts and shrinks — but far less than under high emissions (<strong>SSP5-8.5</strong>). The gap between the two paths widens through the century. The mountain's future is, to a real degree, a <strong>choice</strong>.
+        <div class="callout">Peak melt: 0.75 (SSP2-4.5) vs 0.61 (SSP5-8.5) mm/day<br>Apr&ndash;Jul share: 16% &rarr; 15% &rarr; 9%<br>Ends in a choice, not doom</div>
+      </div>
+    </div>
+  </div>
+  <div class="scene-viz">
+    <div class="viz-slot">
+      <div class="viz-slot-tag">
+        <span>Visualization slot</span>
+        <span class="pill mod">model projection</span>
+        <span class="pill todo">extend Scene 3</span>
+        <span class="pill owner">OWNER: _______</span>
+      </div>
+      <div class="viz-slot-title">Scenario toggle: SSP2-4.5 vs SSP5-8.5</div>
+      <ul>
+        <li><b>Type:</b> reuse the Scene 3 hydrograph engine; add SSP2-4.5 as a third curve</li>
+        <li><b>Interaction:</b> toggle / slider between scenarios — the main "agency" interaction</li>
+        <li><b>Data:</b> all 3 scenarios are real in <b>sierra_snowmelt_profiles.csv</b></li>
+        <li><b>Role:</b> hope beat — divergence between paths is the message</li>
+      </ul>
+      <div class="viz-mount" id="viz-scene-6">render here &nbsp;&middot;&nbsp; &lt;div id="viz-scene-6"&gt;</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- CLOSE / TAKEAWAY                                             -->
+<!-- ============================================================ -->
+<section class="full-section" data-scene="7" style="border-top:1px solid var(--rule);">
+  <div class="intro-inner">
+    <h1 style="font-size: clamp(1.4rem,3vw,2.2rem); margin-bottom:1rem;">Less Snowmelt, Arriving Sooner</h1>
+    <p>The headline isn't just "less snow." It's <em>less, and sooner</em> — a frozen reservoir built to release water slowly is being pushed to release less of it, earlier, before the dry season needs it. How wide the gap gets is still a choice.</p>
+    <div class="video-slot">
+      VIDEO SLOT — embed the &le;2-min demo video here (YouTube iframe).<br>
+      Rubric requires the project video to be linked or embedded in the page.
+    </div>
+  </div>
+</section>
+
+<div id="chart-tooltip" role="tooltip" aria-hidden="true"></div>
+
+<script>
+// Minimal scroll-spy for the progress dots (scaffold only — the real
+// per-scene rendering will be wired by each scene's own JS / main.js).
+const dots = Array.from(document.querySelectorAll('#progress .dot'));
+const scenes = Array.from(document.querySelectorAll('[data-scene]'));
+const io = new IntersectionObserver((entries) => {
+  entries.forEach((e) => {
+    if (e.isIntersecting) {
+      const i = +e.target.getAttribute('data-scene');
+      dots.forEach((d) => d.classList.toggle('active', +d.getAttribute('data-step') === i));
+    }
+  });
+}, { threshold: 0.5 });
+scenes.forEach((s) => io.observe(s));
+dots.forEach((d) => d.addEventListener('click', () => {
+  const i = +d.getAttribute('data-step');
+  scenes[i] && scenes[i].scrollIntoView({ behavior: 'smooth' });
+}));
+</script>
+</body>
+</html>

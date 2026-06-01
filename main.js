@@ -122,7 +122,7 @@ function demandWaterYearPoints() {
 const svg   = d3.select("#chart-svg");
 const W     = () => svg.node().getBoundingClientRect().width;
 const H     = () => svg.node().getBoundingClientRect().height;
-const MARGIN = { top: 28, right: 24, bottom: 44, left: 56 };
+const MARGIN = { top: 52, right: 24, bottom: 44, left: 56 };
 
 const x = d3.scalePoint().domain(WY_LABELS).padding(0.1);
 const y = d3.scaleLinear();
@@ -166,11 +166,7 @@ const xAxisTitle = root.append("text").attr("class","axis-title")
   .attr("text-anchor","middle")
   .attr("fill","var(--text-dim)").attr("font-size","10px")
   .attr("font-family","'IBM Plex Mono',monospace")
-  .text("water year (Oct → Sep)");
-
-// Shaded melt → demand offset region (sits behind the curves).
-const gapBand = root.append("g").attr("class","gap-band-layer").attr("opacity",0);
-gapBand.append("rect").attr("class","gap-band").attr("fill","var(--gap)");
+  .text("Oct → Sep");
 
 const demandAreaPath = root.append("path").attr("class","demand-area").attr("opacity",0);
 const demandLinePath = root.append("path").attr("class","demand-line").attr("opacity",0);
@@ -199,6 +195,15 @@ projPeak.append("text").attr("class","peak-label")
   .attr("font-size","10px")
   .text("Proj. melt peak");
 
+const demandPeak = root.append("g").attr("class","peak-demand").attr("opacity",0);
+demandPeak.append("line").attr("stroke","var(--demand)").attr("stroke-width",1)
+  .attr("stroke-dasharray","3 3");
+demandPeak.append("text").attr("class","peak-label")
+  .attr("fill","var(--demand)")
+  .attr("font-family","'IBM Plex Mono',monospace")
+  .attr("font-size","10px")
+  .text("Water demand peak");
+
 // "peak shifts ~N month(s) earlier" annotation (arrow points to the earlier peak).
 const peakShift = root.append("g").attr("class","peak-shift").attr("opacity",0);
 peakShift.append("line").attr("class","peak-shift-line")
@@ -209,18 +214,18 @@ peakShift.append("text").attr("class","peak-shift-label")
   .attr("font-family","'IBM Plex Mono',monospace")
   .attr("font-size","10px").attr("text-anchor","middle");
 
-// melt → demand horizontal offset bracket.
+// "~N-month water gap" annotation — same style as the peak-shift annotation, but a
+// double-headed span at mid-height between the projected melt peak and the demand peak.
+// Replaces the peak-shift annotation on the final step.
 const gapAnnotation = root.append("g").attr("class","gap-annotation").attr("opacity",0);
-gapAnnotation.append("line").attr("class","gap-measure")
-  .attr("stroke","var(--red)").attr("stroke-width",1.2);
-gapAnnotation.append("line").attr("class","gap-tick-left")
-  .attr("stroke","var(--red)").attr("stroke-width",1.2);
-gapAnnotation.append("line").attr("class","gap-tick-right")
-  .attr("stroke","var(--red)").attr("stroke-width",1.2);
+gapAnnotation.append("line").attr("class","gap-line")
+  .attr("stroke","var(--text)").attr("stroke-width",1)
+  .attr("marker-start","url(#arrow-shift)")
+  .attr("marker-end","url(#arrow-shift)");
 gapAnnotation.append("text").attr("class","gap-label")
+  .attr("fill","var(--text)")
   .attr("font-family","'IBM Plex Mono',monospace")
-  .attr("font-size","10px").attr("fill","var(--red)")
-  .attr("text-anchor","middle");
+  .attr("font-size","10px").attr("text-anchor","middle");
 
 // Hover hit targets — appended last so they sit on top of paths & annotations.
 const tooltipTargets = root.append("g").attr("class","tooltip-targets");
@@ -423,12 +428,18 @@ function draw() {
     .text(normalize ? "% of each curve's own peak" : "snowmelt (mm/day)");
   xAxisTitle.attr("x", iW / 2).attr("y", iH + 34);
 
-  demandAreaPath.attr("d", area(demandPts)).attr("fill","var(--demand-dim)");
-  demandLinePath.attr("d", line(demandPts))
-    .attr("fill","none")
-    .attr("stroke","var(--demand)")
-    .attr("stroke-width",2)
-    .attr("stroke-dasharray","5 4");
+  if (normalize) {
+    demandAreaPath.attr("d", area(demandPts)).attr("fill","var(--demand-dim)");
+    demandLinePath.attr("d", line(demandPts)).attr("fill","none")
+      .attr("stroke","var(--demand)").attr("stroke-width",2).attr("stroke-dasharray","5 4");
+  } else {
+    // Raw mm/day axis: demand (a 0-100 index) has no place here. Cancel any
+    // in-flight fade and hide instantly so it cannot flash mis-scaled.
+    demandAreaPath.interrupt().attr("opacity", 0);
+    demandLinePath.interrupt().attr("opacity", 0);
+    demandPeak.interrupt().attr("opacity", 0);
+    gapAnnotation.interrupt().attr("opacity", 0);
+  }
 
   if (histPts) {
     histAreaPath.attr("d", area(histPts)).attr("fill","var(--blue-dim)").attr("opacity",1);
@@ -500,7 +511,7 @@ function draw() {
   const monthsShift = histPk.pos - projPk.pos;
   if (monthsShift !== 0) {
     const peakTop = Math.min(histY, projY);
-    const shiftY = Math.max(14, peakTop - 16);
+    const shiftY = Math.max(2, peakTop - 46);
     peakShift.select("line")
       .attr("x1", ppx).attr("y1", shiftY)
       .attr("x2", hpx).attr("y2", shiftY);
@@ -509,27 +520,27 @@ function draw() {
       .text(`peak shifts ~${Math.abs(monthsShift)} month${Math.abs(monthsShift) > 1 ? "s" : ""} earlier`);
   }
 
-  // melt → demand offset. The shaded band spans the projected melt peak to the
-  // demand peak (full height); the bracket measures that gap in months.
-  const demandPk = demandPts.reduce((a, b) => (b.value > a.value ? b : a));
-  const dpx = x(demandPk.label);
-  const gx0 = Math.min(ppx, dpx), gx1 = Math.max(ppx, dpx);
+  // Water-gap annotation (normalized only): a double-headed span at mid-height from
+  // the projected melt peak to the summer demand peak — same style as the peak-shift
+  // annotation, which it replaces on the final step.
+  if (normalize) {
+    const demandPk = demandPts.reduce((a, b) => (b.value > a.value ? b : a));
+    const dpx = x(demandPk.label);
+    const gapMonths = Math.abs(demandPk.pos - projPk.pos);
+    const gapY = iH / 2;
+    gapAnnotation.select(".gap-line")
+      .attr("x1", ppx).attr("y1", gapY)
+      .attr("x2", dpx).attr("y2", gapY);
+    gapAnnotation.select(".gap-label")
+      .attr("x", (ppx + dpx) / 2).attr("y", gapY - 6)
+      .text(`~${gapMonths}-month water gap`);
 
-  gapBand.select(".gap-band")
-    .attr("x", gx0).attr("y", 0)
-    .attr("width", Math.max(gx1 - gx0, 1)).attr("height", iH);
-
-  const bracketY = Math.round(iH * 0.30);
-  gapAnnotation.select(".gap-measure")
-    .attr("x1", gx0).attr("x2", gx1).attr("y1", bracketY).attr("y2", bracketY);
-  gapAnnotation.select(".gap-tick-left")
-    .attr("x1", gx0).attr("x2", gx0).attr("y1", bracketY - 4).attr("y2", bracketY + 4);
-  gapAnnotation.select(".gap-tick-right")
-    .attr("x1", gx1).attr("x2", gx1).attr("y1", bracketY - 4).attr("y2", bracketY + 4);
-  const offMonths = Math.abs(demandPk.pos - projPk.pos);
-  gapAnnotation.select(".gap-label")
-    .attr("x", (gx0 + gx1) / 2).attr("y", bracketY - 7)
-    .text(`~${offMonths} months: winter melt → summer demand`);
+    const demandPkY = y(demandPk.value);
+    demandPeak.select("line")
+      .attr("x1", dpx).attr("x2", dpx)
+      .attr("y1", demandPkY).attr("y2", iH);
+    placePeakLabel(demandPeak.select("text"), dpx, demandPkY, iW);
+  }
 }
 
 window.addEventListener("resize", draw);
@@ -553,7 +564,7 @@ const STEP_CONFIG = {
   1: { proj:false, histPeak:true,  projPeak:false, shift:false, demand:false, normalized:true  },
   2: { proj:true,  histPeak:true,  projPeak:true,  shift:true,  demand:false, normalized:true  },
   3: { proj:true,  histPeak:true,  projPeak:true,  shift:true,  demand:false, normalized:false },
-  4: { proj:true,  histPeak:true,  projPeak:true,  shift:true,  demand:true,  normalized:true  },
+  4: { proj:true,  histPeak:true,  projPeak:true,  shift:false, demand:true,  normalized:true  },
 };
 
 function applyVisibility(animate) {
@@ -574,7 +585,7 @@ function applyVisibility(animate) {
   tt(peakShift, 500).attr("opacity", shiftShown ? 1 : 0);
   tt(demandAreaPath, 700).attr("opacity", demandShown ? 1 : 0);
   tt(demandLinePath, 700).attr("opacity", demandShown ? 0.7 : 0);
-  tt(gapBand, 700).attr("opacity", demandShown ? 1 : 0);
+  tt(demandPeak, 500).attr("opacity", demandShown ? 1 : 0);
   tt(gapAnnotation, 800).attr("opacity", demandShown ? 1 : 0);
 
   d3.select("#legend-future").style("opacity", projShown ? "1" : "0");
@@ -586,20 +597,8 @@ function setStep(i) {
   dots.forEach((d, j) => d.classList.toggle("active", j === i));
   const cfg = STEP_CONFIG[i] || STEP_CONFIG[0];
   normalize = cfg.normalized; // apply the step's preferred mode
-  const tog = document.getElementById("normalize-toggle");
-  if (tog) tog.checked = normalize;
   draw();
   applyVisibility(true);
-}
-
-// Normalize toggle — manual override of the current mode.
-const normalizeToggle = document.getElementById("normalize-toggle");
-if (normalizeToggle) {
-  normalizeToggle.addEventListener("change", (e) => {
-    normalize = e.target.checked;
-    draw();
-    applyVisibility(false);
-  });
 }
 
 // Intersection observer
