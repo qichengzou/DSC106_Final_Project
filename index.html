@@ -262,15 +262,56 @@
   </div>
 </section>
 
-<!-- ===== SCENE 6 SLOT — the choice (extend Scene 3) ===== -->
-<section class="scene-slot" data-slot="6">
-  <div class="slot-card">
-    <div class="slot-tag">Scene 6 · the choice · EXTEND SCENE 3 · OWNER: ______</div>
-    <h2 class="slot-title">How bad depends on us</h2>
-    <p class="slot-spec">Scenario toggle: SSP2-4.5 vs SSP5-8.5 on the hydrograph (reuse the Scene 3 engine; add the third curve). All three scenarios are real in <code>sierra_snowmelt_profiles.csv</code>. The agency / hope beat.</p>
-    <div class="slot-mount" id="viz-scene-6">render here &middot; &lt;div id="viz-scene-6"&gt;</div>
+<!-- ===== SCENE 6 — Two Futures ===== -->
+<div class="full-section">
+  <div class="intro-inner">
+    <h1>Two Futures.<br><span>One Choice.</span></h1>
+    <p>The outcome isn't fixed. Under moderate emissions (SSP2-4.5) the West faces stress but retains meaningful spring runoff. Under high emissions (SSP5-8.5) the loss is sharper. The difference is the emissions path we choose.</p>
   </div>
-</section>
+</div>
+
+<div id="scene-6">
+
+  <div id="sticky-chart-6">
+    <div id="chart-title-6">Two futures for Sierra Nevada runoff</div>
+    <div id="chart-subtitle-6">CMIP6 monthly runoff index · % of historical peak · 2050–2075</div>
+    <svg id="chart-svg-6"></svg>
+    <div id="legend-6">
+      <div class="legend-item">
+        <div class="legend-swatch" style="background:var(--blue)"></div>
+        <span>Historical (1970–2000)</span>
+      </div>
+      <div class="legend-item" id="legend-moderate-6">
+        <div class="legend-swatch" style="background:var(--green)"></div>
+        <span>Moderate emissions — SSP2-4.5 (2050–2075)</span>
+      </div>
+      <div class="legend-item" id="legend-high-6">
+        <div class="legend-swatch" style="background:var(--red)"></div>
+        <span>High emissions — SSP5-8.5 (2050–2075)</span>
+      </div>
+    </div>
+    <div id="scenario-toggle" class="visible">
+      <button class="toggle-btn active-both" data-scenario="both">Both futures</button>
+      <button class="toggle-btn" data-scenario="moderate">Moderate path</button>
+      <button class="toggle-btn" data-scenario="high">High-emissions path</button>
+    </div>
+    <div class="chart-hover-note">Hover for monthly values</div>
+  </div>
+
+  <div id="scene6-text">
+    <div class="step-inner">
+      <div class="step-tag">Scene 6 · Two Futures</div>
+      <div class="step-head">The gap is real.<br>So is the choice.</div>
+      <div class="step-body">
+        Under <strong style="color:var(--green)">moderate emissions (SSP2-4.5)</strong>, the winter peak drops to ~90% of historical — the water system is stressed, but retains meaningful spring runoff.
+        <br><br>
+        Under <strong style="color:var(--red)">high emissions (SSP5-8.5)</strong>, the drop is steeper: ~80% of historical, with spring runoff collapsing faster. The divergence is greatest in <strong>March–May</strong> — exactly when reservoirs refill.
+        <div class="callout">Feb gap: ~10 index points<br>Apr gap: ~15 index points<br>Every point = less stored water</div>
+      </div>
+    </div>
+  </div>
+
+</div>
 
 <!-- OUTRO -->
 <div class="full-section">

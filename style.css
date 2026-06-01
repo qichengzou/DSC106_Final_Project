@@ -14,6 +14,8 @@
   --demand-dim:rgba(200,185,122,0.12);
   --gap:       rgba(224,90,74,0.18);
   --rule:      rgba(255,255,255,0.07);
+  --green:     #5bc99a;
+  --green-dim: rgba(91,201,154,0.15);
 }
 
 html { scroll-behavior: smooth; }
@@ -939,3 +941,130 @@ body {
     order: 2;
   }
 }
+
+/* ============================================================ */
+/* SCENE 6 — Two Futures                                        */
+/* ============================================================ */
+
+#scene-6 {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  min-height: 100vh;
+}
+
+#sticky-chart-6 {
+  width: 58%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 2rem 2rem 2rem 3rem;
+}
+
+#scene6-text {
+  width: 42%;
+  padding: 0 2.5rem 0 2rem;
+  display: flex;
+  align-items: center;
+}
+
+#scene6-text .step-inner {
+  background: var(--bg-panel);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 2rem;
+  max-width: 380px;
+}
+
+#chart-title-6 {
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(1.1rem, 2vw, 1.4rem);
+  font-weight: 400;
+  color: var(--text);
+  margin-bottom: 0.3rem;
+  line-height: 1.3;
+}
+
+#chart-subtitle-6 {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 1.5rem;
+}
+
+#legend-6 {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+  font-size: 0.72rem;
+  font-family: 'IBM Plex Mono', monospace;
+  color: var(--text-dim);
+}
+
+#chart-svg-6 {
+  width: 100%;
+  flex: 1;
+  min-height: 280px;
+  max-height: 420px;
+  overflow: visible;
+}
+
+/* Scenario toggle buttons */
+#scenario-toggle {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  opacity: 0;
+  transition: opacity 0.4s;
+}
+
+#scenario-toggle.visible {
+  opacity: 1;
+}
+
+.toggle-btn {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.63rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 0.28rem 0.7rem;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s, border-color 0.2s;
+}
+
+.toggle-btn:hover {
+  color: var(--text);
+  background: rgba(255,255,255,0.07);
+}
+
+.toggle-btn.active-mod {
+  color: var(--green);
+  border-color: var(--green);
+  background: var(--green-dim);
+}
+
+.toggle-btn.active-high {
+  color: var(--red);
+  border-color: var(--red);
+  background: var(--red-dim);
+}
+
+.toggle-btn.active-both {
+  color: var(--text);
+  border-color: rgba(255,255,255,0.3);
+  background: rgba(255,255,255,0.07);
+}
+
+.diff-annotation {
+  pointer-events: none;
+}
+
+#chart-tooltip[data-series="moderate"] { border-left-color: var(--green); }
