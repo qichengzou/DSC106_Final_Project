@@ -16,6 +16,10 @@
   <div class="dot" data-step="1"></div>
   <div class="dot" data-step="2"></div>
   <div class="dot" data-step="3"></div>
+  <div class="dot" data-step="4"></div>
+  <div class="dot" data-step="5"></div>
+  <div class="dot" data-step="6"></div>
+  <div class="dot" data-step="7"></div>
 </nav>
 
 <!-- INTRO -->
@@ -106,6 +110,103 @@
       Less Runoff + Seasonal Mismatch
     </h1>
     <p>These CMIP6 projections point to reduced Sierra runoff under SSP5-8.5 — not a large shift in peak month in this ensemble, but less water when the wet season arrives and even less heading into summer demand.</p>
+  </div>
+</div>
+
+<!-- SCENE 5 BRIDGE -->
+<div class="full-section">
+  <div class="intro-inner">
+    <h1>Two Futures.<br><span>One Choice.</span></h1>
+    <p>The outcome isn't fixed. Under moderate emissions (SSP2-4.5) the West faces stress but retains meaningful spring runoff. Under high emissions (SSP5-8.5) the loss is sharper. The difference is the emissions path we choose.</p>
+    <div class="scroll-cue">↓ scroll to compare</div>
+  </div>
+</div>
+
+<!-- SCENE 5 -->
+<div id="scene-5">
+
+  <div id="sticky-chart-5">
+    <div id="chart-title-5">Two futures for Sierra Nevada runoff</div>
+    <div id="chart-subtitle-5">CMIP6 monthly runoff index · % of historical peak · 2050–2075</div>
+    <svg id="chart-svg-5"></svg>
+    <div id="legend-5">
+      <div class="legend-item">
+        <div class="legend-swatch" style="background:var(--blue)"></div>
+        <span>Historical (1970–2000)</span>
+      </div>
+      <div class="legend-item" id="legend-moderate-5">
+        <div class="legend-swatch" style="background:var(--green)"></div>
+        <span>Moderate emissions — SSP2-4.5 (2050–2075)</span>
+      </div>
+      <div class="legend-item" id="legend-high-5">
+        <div class="legend-swatch" style="background:var(--red)"></div>
+        <span>High emissions — SSP5-8.5 (2050–2075)</span>
+      </div>
+    </div>
+    <div id="scenario-toggle">
+      <button class="toggle-btn active-both" data-scenario="both">Both futures</button>
+      <button class="toggle-btn" data-scenario="moderate">Moderate path</button>
+      <button class="toggle-btn" data-scenario="high">High-emissions path</button>
+    </div>
+    <div class="chart-hover-note">Hover for monthly values</div>
+  </div>
+
+  <div id="scroll-text-5">
+
+    <div class="step-s5" data-step="0">
+      <div class="step-inner">
+        <div class="step-tag">Scene 5 · Step 1 of 4 · Context</div>
+        <div class="step-head">The baseline: what history looked like</div>
+        <div class="step-body">
+          We've seen how warming reshapes the Sierra's runoff pulse. But the story has two chapters, not one — because <strong>how much warming we get depends on choices made now</strong>.
+          <div class="callout">Feb peak · historical<br>100% of annual maximum<br>~37 mm runoff this month</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step-s5" data-step="1">
+      <div class="step-inner">
+        <div class="step-tag">Scene 5 · Step 2 of 4 · Moderate path</div>
+        <div class="step-head">SSP2-4.5: <em>a reduced</em>, not collapsed, snowpack</div>
+        <div class="step-body">
+          Under moderate emissions, the winter peak drops to roughly <strong>90% of the historical level</strong>. Spring and early summer retain more meaningful runoff — the water system is stressed, but not broken.
+          <div class="callout">Feb peak: ~91% of historical<br>Spring runoff: still present<br>5-model ensemble · 2050–2075</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step-s5" data-step="2">
+      <div class="step-inner">
+        <div class="step-tag">Scene 5 · Step 3 of 4 · High-emissions path</div>
+        <div class="step-head">SSP5-8.5: <em>a steeper</em> drop</div>
+        <div class="step-body">
+          Under high emissions, the same winter peak falls further — to around <strong>80% of historical</strong>. More critically, spring runoff collapses faster. By April, the high-emissions future has lost nearly twice as much relative to history as the moderate path.
+          <div class="callout">Feb peak: ~80% of historical<br>Apr: 32% (mod) vs 64% (hist)<br>5-model ensemble · 2050–2075</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step-s5" data-step="3">
+      <div class="step-inner">
+        <div class="step-tag">Scene 5 · Step 4 of 4 · The choice</div>
+        <div class="step-head">The gap is real.<br>So is the choice.</div>
+        <div class="step-body">
+          The two future curves diverge most in <strong>spring — March through May</strong> — exactly when reservoirs refill and farmers plan their season. Use the buttons below to focus on each path.
+          <div class="callout">Feb gap: ~10 index points<br>Apr gap: ~15 index points<br>Every point = less stored water</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- SCENE 5 OUTRO -->
+<div class="full-section">
+  <div class="intro-inner">
+    <h1 style="font-size: clamp(1.4rem,3vw,2rem); margin-bottom:1rem;">
+      The Mountain Remembers<br>What We Emit Today
+    </h1>
+    <p>Sierra snowpack doesn't respond to today's emissions — it responds to the atmosphere's accumulated heat. The decisions made in this decade will shape runoff curves for the next half-century.</p>
   </div>
 </div>
 

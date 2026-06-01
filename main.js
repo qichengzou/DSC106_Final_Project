@@ -8,6 +8,7 @@ const demand = [8, 7, 10, 15, 38, 70, 100, 97, 62, 28, 10, 7];
 
 let historical;
 let projected;
+let moderate;
 
 // Tooltip metadata lookup: "${scenario}-${month}" -> { mean_kgm2, model_count }
 let metadataByKey = {};
@@ -68,6 +69,7 @@ async function loadSnowProfiles() {
 
   const hist = profileFromCsv(rows, "historical");
   const proj = profileFromCsv(rows, PROJECTED_SCENARIO);
+  const mod  = profileFromCsv(rows, "ssp245");
 
   if (!hist || !proj) {
     const scenarios = [...new Set(rows.map((d) => d.scenario))];
@@ -77,7 +79,7 @@ async function loadSnowProfiles() {
     );
   }
 
-  return { historical: hist, projected: proj };
+  return { historical: hist, projected: proj, moderate: mod };
 }
 
 // Chart setup
@@ -206,6 +208,7 @@ function demandPhase(monthIdx) {
 function metaFor(series, monthIdx) {
   const scenario = series === "historical" ? "historical"
     : series === "projected" ? PROJECTED_SCENARIO
+    : series === "moderate"  ? "ssp245"
     : null;
   if (!scenario) return null;
   return metadataByKey[`${scenario}-${monthIdx + 1}`] || null;
@@ -216,6 +219,19 @@ function isSeriesVisible(series) {
   if (series === "demand") return true;
   const className = series === "historical" ? "hist-line" : "proj-line";
   const path = svg.select(`.${className}`);
+  if (path.empty()) return false;
+  return +path.attr("opacity") > 0.1;
+}
+
+function isSeriesVisible5(series) {
+  const classMap = {
+    historical: "hist-line-5",
+    moderate:   "mod-line-5",
+    projected:  "proj-line-5",
+  };
+  const cls = classMap[series];
+  if (!cls) return false;
+  const path = svg5.select(`.${cls}`);
   if (path.empty()) return false;
   return +path.attr("opacity") > 0.1;
 }
@@ -254,6 +270,21 @@ function tooltipHtml(series, monthIdx) {
       </div>`;
   }
 
+  if (series === "moderate") {
+    const pct = Math.round(Math.max(0, moderate[monthIdx]));
+    const count = meta
+      ? (meta.model_count === 1 ? "1 model" : `${meta.model_count}-model ensemble mean`)
+      : "";
+    return `
+      <div class="tt-eyebrow"><span class="tt-month">${month}</span> · PROJECTED · SSP2-4.5</div>
+      ${mmLine}
+      <div class="tt-secondary">${pct}% of historical maximum</div>
+      <div class="tt-footer">
+        <div class="tt-footer-line">Moderate emissions · 2050–2075</div>
+        <div class="tt-footer-line">${count}</div>
+      </div>`;
+  }
+
   // projected (SSP5-8.5)
   const pct = Math.round(Math.max(0, projected[monthIdx]));
   const count = meta
@@ -264,7 +295,7 @@ function tooltipHtml(series, monthIdx) {
     ${mmLine}
     <div class="tt-secondary">${pct}% of historical maximum</div>
     <div class="tt-footer">
-      <div class="tt-footer-line">2050–2075</div>
+      <div class="tt-footer-line">High emissions · 2050–2075</div>
       <div class="tt-footer-line">${count}</div>
     </div>`;
 }
@@ -524,6 +555,8 @@ const observer = new IntersectionObserver((entries) => {
   entries.forEach(entry => {
     if (entry.isIntersecting) {
       const i = +entry.target.dataset.step;
+      // Deactivate scene 5 dots when main scene is in view
+      dots.forEach((d, j) => { if (j >= 4) d.classList.remove("active"); });
       setStep(i);
     }
   });
@@ -532,15 +565,301 @@ const observer = new IntersectionObserver((entries) => {
 steps.forEach(s => observer.observe(s));
 
 // Progress dot navigation
-dots.forEach(d => {
+dots.forEach((d, j) => {
   d.addEventListener("click", () => {
     const i = +d.dataset.step;
-    steps[i].scrollIntoView({ behavior:"smooth", block:"center" });
+    if (j < 4) {
+      steps[i].scrollIntoView({ behavior:"smooth", block:"center" });
+    } else {
+      // dots 4–7 have data-step="4"–"7"; scene 5 steps are indexed 0–3
+      steps5[i - 4].scrollIntoView({ behavior:"smooth", block:"center" });
+    }
   });
 });
 
-// Draw demand/axes immediately; load snow curves from CSV
+// ============================================================
+// Scene 5 — Two Futures chart
+// ============================================================
+
+const svg5    = d3.select("#chart-svg-5");
+const W5      = () => svg5.node().getBoundingClientRect().width;
+const H5      = () => svg5.node().getBoundingClientRect().height;
+const MARGIN5 = { top: 28, right: 24, bottom: 40, left: 56 };
+
+const x5 = d3.scalePoint().domain(MONTHS).padding(0.1);
+const y5 = d3.scaleLinear().domain([0, 110]).nice();
+
+const area5 = (data) => d3.area()
+  .x((d,i) => x5(MONTHS[i]))
+  .y0(y5(0))
+  .y1(d => y5(d))
+  .curve(d3.curveCatmullRom.alpha(0.5))(data);
+
+const line5 = (data) => d3.line()
+  .x((d,i) => x5(MONTHS[i]))
+  .y(d => y5(d))
+  .curve(d3.curveCatmullRom.alpha(0.5))(data);
+
+function innerW5() { return W5() - MARGIN5.left - MARGIN5.right; }
+function innerH5() { return H5() - MARGIN5.top  - MARGIN5.bottom; }
+
+const root5    = svg5.append("g").attr("transform", `translate(${MARGIN5.left},${MARGIN5.top})`);
+const gridG5   = root5.append("g").attr("class","grid");
+const xAxisG5  = root5.append("g").attr("class","x-axis");
+const yAxisG5  = root5.append("g").attr("class","y-axis");
+
+const histAreaPath5 = root5.append("path").attr("class","hist-area-5");
+const histLinePath5 = root5.append("path").attr("class","hist-line-5");
+
+const modAreaPath5 = root5.append("path").attr("class","mod-area-5").attr("opacity",0);
+const modLinePath5 = root5.append("path").attr("class","mod-line-5").attr("opacity",0);
+
+const projAreaPath5 = root5.append("path").attr("class","proj-area-5").attr("opacity",0);
+const projLinePath5 = root5.append("path").attr("class","proj-line-5").attr("opacity",0);
+
+// Diff annotation group (shown at step 3)
+const diffAnnotation5 = root5.append("g").attr("class","diff-annotation").attr("opacity",0);
+diffAnnotation5.append("line").attr("class","diff-line-mod")
+  .attr("stroke","var(--green)").attr("stroke-width",1).attr("stroke-dasharray","3 3");
+diffAnnotation5.append("line").attr("class","diff-line-high")
+  .attr("stroke","var(--red)").attr("stroke-width",1).attr("stroke-dasharray","3 3");
+diffAnnotation5.append("text").attr("class","diff-label")
+  .attr("font-family","'IBM Plex Mono',monospace")
+  .attr("font-size","10px")
+  .attr("fill","var(--text-dim)")
+  .attr("text-anchor","middle")
+  .attr("dy","0.35em")
+  .text("~10 pt gap at peak");
+
+const tooltipTargets5 = root5.append("g").attr("class","tooltip-targets");
+
+function draw5() {
+  const width = W5();
+  const height = H5();
+  if (width <= 0 || height <= 0) return;
+
+  svg5.attr("width", width).attr("height", height);
+
+  const iW = innerW5();
+  const iH = innerH5();
+  if (iW <= 0 || iH <= 0) return;
+
+  x5.range([0, iW]);
+  y5.range([iH, 0]);
+
+  gridG5.selectAll("line").data(y5.ticks(5)).join("line")
+    .attr("x1",0).attr("x2",iW)
+    .attr("y1",d=>y5(d)).attr("y2",d=>y5(d))
+    .attr("stroke","rgba(255,255,255,0.05)").attr("stroke-width",1);
+
+  xAxisG5.attr("transform",`translate(0,${iH})`)
+    .call(d3.axisBottom(x5).tickSize(0).tickPadding(10))
+    .call(g => g.select(".domain").attr("stroke","rgba(255,255,255,0.1)"))
+    .call(g => g.selectAll("text")
+      .attr("fill","var(--text-dim)")
+      .attr("font-size","11px")
+      .attr("font-family","'IBM Plex Mono',monospace"));
+
+  yAxisG5.call(d3.axisLeft(y5).ticks(5).tickFormat(d=>d+"%").tickSize(0).tickPadding(8))
+    .call(g => g.select(".domain").remove())
+    .call(g => g.selectAll("text")
+      .attr("fill","var(--text-dim)")
+      .attr("font-size","10px")
+      .attr("font-family","'IBM Plex Mono',monospace"));
+
+  if (!historical) return;
+
+  histAreaPath5
+    .attr("d", area5(historical))
+    .attr("fill","var(--blue-dim)")
+    .attr("opacity", 1);
+  histLinePath5
+    .attr("d", line5(historical))
+    .attr("fill","none")
+    .attr("stroke","var(--blue)")
+    .attr("stroke-width",2.5)
+    .attr("opacity", 1);
+
+  if (moderate) {
+    modAreaPath5
+      .attr("d", area5(moderate))
+      .attr("fill","var(--green-dim)");
+    modLinePath5
+      .attr("d", line5(moderate))
+      .attr("fill","none")
+      .attr("stroke","var(--green)")
+      .attr("stroke-width",2.5);
+  }
+
+  if (projected) {
+    projAreaPath5
+      .attr("d", area5(projected))
+      .attr("fill","var(--red-dim)");
+    projLinePath5
+      .attr("d", line5(projected))
+      .attr("fill","none")
+      .attr("stroke","var(--red)")
+      .attr("stroke-width",2.5);
+  }
+
+  // Diff annotation — vertical gap at Feb peak between mod and proj
+  if (moderate && projected) {
+    const peakIdx = historical.indexOf(Math.max(...historical));
+    const px = x5(MONTHS[peakIdx]);
+    const modY = y5(moderate[peakIdx]);
+    const projY = y5(projected[peakIdx]);
+
+    diffAnnotation5.select(".diff-line-mod")
+      .attr("x1", px - 18).attr("x2", px + 18)
+      .attr("y1", modY).attr("y2", modY);
+    diffAnnotation5.select(".diff-line-high")
+      .attr("x1", px - 18).attr("x2", px + 18)
+      .attr("y1", projY).attr("y2", projY);
+    diffAnnotation5.select(".diff-label")
+      .attr("x", px + 38)
+      .attr("y", (modY + projY) / 2);
+  }
+
+  // Hover hit targets for scene 5
+  const targetData5 = [];
+  if (projected) projected.forEach((v, i) =>
+    targetData5.push({ series: "projected", month: i, cx: x5(MONTHS[i]), cy: y5(v) }));
+  if (moderate) moderate.forEach((v, i) =>
+    targetData5.push({ series: "moderate", month: i, cx: x5(MONTHS[i]), cy: y5(v) }));
+  if (historical) historical.forEach((v, i) =>
+    targetData5.push({ series: "historical", month: i, cx: x5(MONTHS[i]), cy: y5(v) }));
+
+  tooltipTargets5.selectAll("circle")
+    .data(targetData5)
+    .join("circle")
+    .attr("cx", (d) => d.cx)
+    .attr("cy", (d) => d.cy)
+    .attr("r", 14)
+    .attr("fill", "transparent")
+    .attr("stroke", "none")
+    .attr("data-series", (d) => d.series)
+    .attr("data-month", (d) => d.month)
+    .on("mouseenter", (event, d) => {
+      if (!isSeriesVisible5(d.series)) return;
+      showTooltip(event, d.series, d.month);
+    })
+    .on("mousemove", (event) => positionTooltip(event))
+    .on("mouseleave", hideTooltip);
+}
+
+window.addEventListener("resize", draw5);
+
+if (typeof ResizeObserver !== "undefined") {
+  const chartObserver5 = new ResizeObserver(() => draw5());
+  const svg5Node = svg5.node();
+  if (svg5Node) chartObserver5.observe(svg5Node);
+}
+
+// Scene 5 scroll state machine
+const state5 = {
+  0: () => {
+    modAreaPath5.transition().duration(500).attr("opacity",0);
+    modLinePath5.transition().duration(500).attr("opacity",0);
+    projAreaPath5.transition().duration(500).attr("opacity",0);
+    projLinePath5.transition().duration(500).attr("opacity",0);
+    diffAnnotation5.transition().duration(400).attr("opacity",0);
+    document.getElementById("legend-moderate-5").classList.remove("visible");
+    document.getElementById("legend-high-5").classList.remove("visible");
+    document.getElementById("scenario-toggle").classList.remove("visible");
+  },
+  1: () => {
+    modAreaPath5.transition().duration(700).attr("opacity",1);
+    modLinePath5.transition().duration(700).attr("opacity",1);
+    projAreaPath5.transition().duration(400).attr("opacity",0);
+    projLinePath5.transition().duration(400).attr("opacity",0);
+    diffAnnotation5.transition().duration(400).attr("opacity",0);
+    document.getElementById("legend-moderate-5").classList.add("visible");
+    document.getElementById("legend-high-5").classList.remove("visible");
+    document.getElementById("scenario-toggle").classList.remove("visible");
+  },
+  2: () => {
+    modAreaPath5.transition().duration(500).attr("opacity",0.2);
+    modLinePath5.transition().duration(500).attr("opacity",0.35);
+    projAreaPath5.transition().duration(700).attr("opacity",1);
+    projLinePath5.transition().duration(700).attr("opacity",1);
+    diffAnnotation5.transition().duration(400).attr("opacity",0);
+    document.getElementById("legend-moderate-5").classList.add("visible");
+    document.getElementById("legend-high-5").classList.add("visible");
+    document.getElementById("scenario-toggle").classList.remove("visible");
+  },
+  3: () => {
+    modAreaPath5.transition().duration(500).attr("opacity",1);
+    modLinePath5.transition().duration(500).attr("opacity",1);
+    projAreaPath5.transition().duration(500).attr("opacity",1);
+    projLinePath5.transition().duration(500).attr("opacity",1);
+    diffAnnotation5.transition().duration(700).delay(300).attr("opacity",1);
+    document.getElementById("legend-moderate-5").classList.add("visible");
+    document.getElementById("legend-high-5").classList.add("visible");
+    document.getElementById("scenario-toggle").classList.add("visible");
+  },
+};
+
+let currentStep5 = 0;
+
+function setStep5(i) {
+  currentStep5 = i;
+  // dots 4–7 correspond to scene 5 steps 0–3
+  dots.forEach((d, j) => {
+    if (j >= 4) d.classList.toggle("active", j - 4 === i);
+  });
+  if (state5[i]) state5[i]();
+}
+
+// Scene 5 IntersectionObserver
+const steps5 = document.querySelectorAll(".step-s5");
+const observer5 = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const i = +entry.target.dataset.step;
+      dots.forEach((d, j) => { if (j < 4) d.classList.remove("active"); });
+      // Redraw with in-viewport dimensions — off-screen getBoundingClientRect is unreliable
+      draw5();
+      setStep5(i);
+    }
+  });
+}, { threshold: 0.5 });
+
+steps5.forEach(s => observer5.observe(s));
+
+// Scenario toggle buttons
+document.querySelectorAll(".toggle-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const scenario = btn.dataset.scenario;
+
+    document.querySelectorAll(".toggle-btn").forEach(b => {
+      b.classList.remove("active-both","active-mod","active-high");
+    });
+
+    if (scenario === "both") {
+      btn.classList.add("active-both");
+      modAreaPath5.transition().duration(400).attr("opacity",1);
+      modLinePath5.transition().duration(400).attr("opacity",1);
+      projAreaPath5.transition().duration(400).attr("opacity",1);
+      projLinePath5.transition().duration(400).attr("opacity",1);
+    } else if (scenario === "moderate") {
+      btn.classList.add("active-mod");
+      modAreaPath5.transition().duration(400).attr("opacity",1);
+      modLinePath5.transition().duration(400).attr("opacity",1);
+      projAreaPath5.transition().duration(400).attr("opacity",0.12);
+      projLinePath5.transition().duration(400).attr("opacity",0.2);
+    } else if (scenario === "high") {
+      btn.classList.add("active-high");
+      modAreaPath5.transition().duration(400).attr("opacity",0.12);
+      modLinePath5.transition().duration(400).attr("opacity",0.2);
+      projAreaPath5.transition().duration(400).attr("opacity",1);
+      projLinePath5.transition().duration(400).attr("opacity",1);
+    }
+  });
+});
+
+// Draw both charts immediately (axes/grid render without data)
 draw();
+draw5();
 
 if (window.location.protocol === "file:") {
   showLoadError(
@@ -556,12 +875,15 @@ if (window.location.protocol === "file:") {
       hideLoadError();
       historical = profiles.historical;
       projected = profiles.projected;
+      moderate  = profiles.moderate;
       console.info("Loaded snow profiles from", DATA_URL, {
         historical,
         projected,
+        moderate,
       });
       draw();
       setStep(currentStep);
+      draw5();
     })
     .catch((err) => {
       console.error("Failed to load snow profile CSV:", err);
