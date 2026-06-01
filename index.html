@@ -99,6 +99,107 @@
   </div>
 </div>
 
+<!-- SCENE 3 · ZOOM OUT: THE SIERRA WATER NETWORK -->
+<section id="scene-3-river-network" class="scene3-section">
+  <div class="scene3-scroll">
+
+    <article class="scene3-steps">
+
+      <div class="scene3-step" data-step="0" data-scenario="historical" data-month="4" data-branch="all">
+        <div class="scene3-step-inner">
+          <div class="scene3-step-tag">Zoom out · The Sierra water network</div>
+          <h2>The mountains are the reservoir.</h2>
+          <p>The Sierra Nevada stores winter precipitation as snow, then releases it downstream as temperatures rise. It is a <strong>frozen reservoir</strong> that feeds far more than one river.</p>
+        </div>
+      </div>
+
+      <div class="scene3-step" data-step="1" data-scenario="historical" data-month="4" data-branch="all">
+        <div class="scene3-step-inner">
+          <div class="scene3-step-tag">Step 2 · One source, many branches</div>
+          <h2>One snowpack, several river branches.</h2>
+          <p>That single snowpack splits into three distinct downstream systems — west toward California's farms and coastal cities, east into the Nevada basins, and south down the Owens Valley.</p>
+        </div>
+      </div>
+
+      <div class="scene3-step" data-step="2" data-scenario="historical" data-month="4" data-branch="west">
+        <div class="scene3-step-inner">
+          <div class="scene3-step-tag">Step 3 · Western slope</div>
+          <h2>The western slope feeds farms and cities.</h2>
+          <p>The <strong>Sacramento</strong> and <strong>San Joaquin</strong> rivers drain into the Central Valley's farms, then on toward the Bay Area and Southern California water systems.</p>
+        </div>
+      </div>
+
+      <div class="scene3-step" data-step="3" data-scenario="historical" data-month="4" data-branch="east">
+        <div class="scene3-step-inner">
+          <div class="scene3-step-tag">Step 4 · Eastern slope</div>
+          <h2>The eastern slope feeds western Nevada.</h2>
+          <p>The <strong>Truckee</strong>, <strong>Carson</strong>, and <strong>Walker</strong> rivers supply Reno–Sparks and the Lahontan Valley, terminating in Pyramid Lake and Walker Lake.</p>
+        </div>
+      </div>
+
+      <div class="scene3-step" data-step="4" data-scenario="historical" data-month="4" data-branch="owens">
+        <div class="scene3-step-inner">
+          <div class="scene3-step-tag">Step 5 · Owens Valley</div>
+          <h2>The Owens River connects the Sierra to Los Angeles.</h2>
+          <p>The <strong>Owens River</strong> flows into the <strong>Los Angeles Aqueduct</strong> — an engineered connection carrying Sierra snowmelt hundreds of kilometers to Southern California.</p>
+        </div>
+      </div>
+
+      <div class="scene3-step" data-step="5" data-scenario="ssp245" data-month="4" data-branch="all">
+        <div class="scene3-step-inner">
+          <div class="scene3-step-tag">Step 6 · Mid-century · SSP2-4.5</div>
+          <h2>Future warming changes the melt signal.</h2>
+          <p>Scaling the same network by the <strong>CMIP6-derived Sierra melt proxy</strong> under SSP2-4.5, the upstream signal weakens — the rivers thin even though the downstream demand does not.</p>
+        </div>
+      </div>
+
+      <div class="scene3-step" data-step="6" data-scenario="ssp585" data-month="4" data-branch="all">
+        <div class="scene3-step-inner">
+          <div class="scene3-step-tag">Step 7 · Mid-century · SSP5-8.5</div>
+          <h2>Under higher emissions, the network remains but the signal weakens.</h2>
+          <p>Under SSP5-8.5 the downstream dependency network is unchanged — the same farms, cities, and lakes — but the upstream melt proxy that feeds it is markedly thinner.</p>
+        </div>
+      </div>
+
+    </article>
+
+    <div class="scene3-viz-wrap">
+      <div class="scene3-viz-head">
+        <div class="scene3-viz-title">Zoom Out: The Sierra Water Network</div>
+        <div class="scene3-viz-sub">River thickness scaled by CMIP6-derived Sierra melt proxy · <span class="scene3-state-label"></span></div>
+      </div>
+
+      <div class="scene3-controls">
+        <div class="scene3-control-group" data-control="scenario">
+          <span class="scene3-control-label">Scenario</span>
+          <button class="scene3-btn" data-scenario="historical">Historical</button>
+          <button class="scene3-btn" data-scenario="ssp245">SSP2-4.5</button>
+          <button class="scene3-btn" data-scenario="ssp585">SSP5-8.5</button>
+        </div>
+        <div class="scene3-control-group" data-control="branch">
+          <span class="scene3-control-label">Highlight</span>
+          <button class="scene3-btn" data-branch="all">All</button>
+          <button class="scene3-btn" data-branch="west">Western</button>
+          <button class="scene3-btn" data-branch="east">Eastern</button>
+          <button class="scene3-btn" data-branch="owens">Owens</button>
+        </div>
+        <div class="scene3-control-group scene3-month-group" data-control="month">
+          <span class="scene3-control-label">Month</span>
+          <div class="scene3-months"></div>
+        </div>
+      </div>
+
+      <div class="scene3-svg-wrap">
+        <svg id="scene3-river-svg"></svg>
+      </div>
+
+      <div class="scene3-legend"></div>
+      <div class="scene3-caption"></div>
+    </div>
+
+  </div>
+</section>
+
 <!-- OUTRO -->
 <div class="full-section">
   <div class="intro-inner">
