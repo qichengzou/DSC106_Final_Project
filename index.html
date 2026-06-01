@@ -28,6 +28,45 @@
   </div>
 </div>
 
+<!-- ===== SCENE 1 SLOT — the cause (to build) ===== -->
+<section class="scene-slot" data-slot="1">
+  <div class="slot-card">
+    <div class="slot-tag">Scene 1 · the cause · TO BUILD · OWNER: ______</div>
+    <h2 class="slot-title">Why snow disappears</h2>
+    <p class="slot-spec">Warming near 0&deg;C flips winter precip from snow to rain and melts what's left sooner. Build: interactive "rising snow line" (temperature slider) — illustrative, optional <code>tas</code> series. Keep it short; it's the lens, not the payoff.</p>
+    <div class="slot-mount" id="viz-scene-1">render here &middot; &lt;div id="viz-scene-1"&gt;</div>
+  </div>
+</section>
+
+<!-- SCENE 2: A Century of Storage -->
+<div id="scene2">
+  <div id="scene2-inner">
+    <div id="scene2-text">
+      <div class="scene2-tag">Scene 2 · Historical Record</div>
+      <h2 id="scene2-head">A Century of Storage</h2>
+      <p id="scene2-desc">
+        April 1st snowpack — the traditional "peak storage" benchmark used by water managers — has been in decline across the Sierra Nevada since the mid-20th century. This is observed data, not a model projection. The trend is already here.
+      </p>
+      <div id="scene2-stat"></div>
+      <div class="scene2-source">
+        Source: CMIP6 ensemble mean (IPSL-CM6A-LR).
+        Historical experiment 1950–2014 + SSP2-4.5 2015–2023. April 1 SWE anomaly relative to 1981–2010 mean.
+      </div>
+    </div>
+    <div id="scene2-chart-wrap">
+      <div id="scene2-chart-title">Sierra Nevada · April 1 Snowpack (SWE)</div>
+      <div id="scene2-chart-subtitle">ANOMALY FROM 1981–2010 MEAN · INCHES</div>
+      <svg id="scene2-svg"></svg>
+      <div id="scene2-slider-wrap">
+        <span class="scene2-slider-label">1950</span>
+        <input type="range" id="scene2-slider" min="1950" max="2023" value="2023" step="1">
+        <span class="scene2-slider-label">2023</span>
+      </div>
+      <div id="scene2-year-display">Showing 1950 – <span id="scene2-year-val">2023</span></div>
+    </div>
+  </div>
+</div>
+
 <!-- STICKY SCENE -->
 <div id="scene">
 
@@ -111,6 +150,36 @@
 
   </div>
 </div>
+
+<!-- ===== SCENE 4 SLOT — the plumbing (to build) ===== -->
+<section class="scene-slot" data-slot="4">
+  <div class="slot-card">
+    <div class="slot-tag">Scene 4 · the plumbing · TO BUILD · OWNER: ______ (Scene 4 partner)</div>
+    <h2 class="slot-title">This snow is the plumbing</h2>
+    <p class="slot-spec">California map: Sierra &rarr; Sacramento &amp; San Joaquin rivers &rarr; Central Valley, with animated downstream flow. Public GeoJSON (us-atlas + Natural Earth). A geographic bridge &mdash; flow widths illustrative, no modeled flow numbers.</p>
+    <div class="slot-mount" id="viz-scene-4">render here &middot; &lt;div id="viz-scene-4"&gt;</div>
+  </div>
+</section>
+
+<!-- ===== SCENE 5 SLOT — the consequence (to build) ===== -->
+<section class="scene-slot" data-slot="5">
+  <div class="slot-card">
+    <div class="slot-tag">Scene 5 · the consequence · TO BUILD · OWNER: ______</div>
+    <h2 class="slot-title">Earlier and smaller &mdash; out of step with summer</h2>
+    <p class="slot-spec">Melt vs. summer demand overlay with the gap shaded. Melt = real <code>snm</code>; demand = illustrative (label it). Normalize both to % of own peak so it compares timing. Frame as rising risk, not certain shortage.</p>
+    <div class="slot-mount" id="viz-scene-5">render here &middot; &lt;div id="viz-scene-5"&gt;</div>
+  </div>
+</section>
+
+<!-- ===== SCENE 6 SLOT — the choice (extend Scene 3) ===== -->
+<section class="scene-slot" data-slot="6">
+  <div class="slot-card">
+    <div class="slot-tag">Scene 6 · the choice · EXTEND SCENE 3 · OWNER: ______</div>
+    <h2 class="slot-title">How bad depends on us</h2>
+    <p class="slot-spec">Scenario toggle: SSP2-4.5 vs SSP5-8.5 on the hydrograph (reuse the Scene 3 engine; add the third curve). All three scenarios are real in <code>sierra_snowmelt_profiles.csv</code>. The agency / hope beat.</p>
+    <div class="slot-mount" id="viz-scene-6">render here &middot; &lt;div id="viz-scene-6"&gt;</div>
+  </div>
+</section>
 
 <!-- OUTRO -->
 <div class="full-section">

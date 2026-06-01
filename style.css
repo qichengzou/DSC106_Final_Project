@@ -362,3 +362,174 @@ body {
 .tooltip-targets circle {
   cursor: pointer;
 }
+
+
+/* ===== Scene 2 (A Century of Storage) — from scene2-snowpack-timeseries branch ===== */
+#scene2 {
+  background: var(--bg);
+  padding: 5rem 3rem 6rem;
+  border-top: 1px solid var(--rule);
+}
+
+#scene2-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  gap: 4rem;
+  align-items: flex-start;
+}
+
+#scene2-text {
+  flex: 0 0 280px;
+  padding-top: 1.5rem;
+}
+
+.scene2-tag {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 0.9rem;
+}
+
+#scene2-head {
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(1.4rem, 2.5vw, 1.9rem);
+  font-weight: 700;
+  line-height: 1.2;
+  margin-bottom: 1rem;
+  color: var(--text);
+}
+
+#scene2-desc {
+  font-size: 0.88rem;
+  color: #a8b4be;
+  line-height: 1.75;
+  margin-bottom: 1.25rem;
+}
+
+#scene2-stat {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.8rem;
+  color: var(--demand);
+  line-height: 1.6;
+  border-left: 2px solid var(--red);
+  padding: 0.5rem 0.75rem;
+  background: rgba(224,90,74,0.06);
+  min-height: 2.5rem;
+  transition: color 0.3s;
+  margin-bottom: 1.5rem;
+}
+
+.scene2-source {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.62rem;
+  color: var(--text-dim);
+  line-height: 1.6;
+  opacity: 0.7;
+}
+
+#scene2-chart-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+#scene2-chart-title {
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(0.95rem, 1.6vw, 1.15rem);
+  font-weight: 400;
+  color: var(--text);
+  margin-bottom: 0.25rem;
+}
+
+#scene2-chart-subtitle {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.65rem;
+  color: var(--text-dim);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 1.2rem;
+}
+
+#scene2-svg {
+  width: 100%;
+  height: 320px;
+  display: block;
+  overflow: visible;
+}
+
+#scene2-slider-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.scene2-slider-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+#scene2-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 3px;
+  background: var(--rule);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+#scene2-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--blue);
+  border: 2px solid var(--bg);
+  cursor: pointer;
+  box-shadow: 0 0 6px rgba(79,168,213,0.5);
+}
+
+#scene2-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--blue);
+  border: 2px solid var(--bg);
+  cursor: pointer;
+}
+
+#scene2-year-display {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  margin-top: 0.6rem;
+  text-align: center;
+}
+
+#scene2-year-display span {
+  color: var(--blue);
+  font-weight: 500;
+}
+
+@media (max-width: 720px) {
+  #scene2-inner {
+    flex-direction: column;
+    gap: 2rem;
+    padding: 3rem 1.5rem 4rem;
+  }
+  #scene2-text { flex: none; }
+}
+
+/* ===== SCAFFOLD PLACEHOLDER SLOTS — delete each rule's markup when its viz is built ===== */
+.scene-slot{min-height:88vh;display:flex;align-items:center;justify-content:center;padding:6vh 2rem;border-top:1px solid var(--rule);}
+.slot-card{max-width:640px;width:100%;border:1.5px dashed rgba(79,168,213,0.45);border-radius:6px;background:rgba(79,168,213,0.03);padding:2rem;}
+.slot-tag{font-family:'IBM Plex Mono',monospace;font-size:0.64rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--text-dim);margin-bottom:0.8rem;}
+.slot-title{font-family:'Playfair Display',serif;font-weight:700;font-size:1.4rem;color:var(--text);margin-bottom:0.8rem;line-height:1.2;}
+.slot-spec{font-size:0.85rem;color:#a8b4be;line-height:1.7;margin-bottom:1.2rem;}
+.slot-mount{min-height:200px;display:flex;align-items:center;justify-content:center;border:1px solid var(--rule);border-radius:4px;color:var(--text-dim);font-family:'IBM Plex Mono',monospace;font-size:0.72rem;text-align:center;padding:1rem;}
