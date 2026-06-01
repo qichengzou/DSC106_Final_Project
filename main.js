@@ -879,3 +879,860 @@ async function initScene2() {
 }
 
 initScene2();
+
+/* ============================================================ */
+/* SCENE 4 · Zoom Out: The Sierra Water Network                 */
+/* All Scene 4 code is namespaced with scene4 / Scene4 and is   */
+/* self-contained so it cannot disturb the existing scenes.     */
+/* ============================================================ */
+
+const SCENE4_MONTH_LABELS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const SCENE4_MONTH_FULL = ["January","February","March","April","May","June",
+  "July","August","September","October","November","December"];
+
+const SCENE4_RIVERS_URL = new URL("data/rivers.geojson", document.baseURI).href;
+
+// Scene 4's own melt profile CSV (has snw_index). Independent of the hydrograph's DATA_URL.
+const SCENE4_MELT_URL = new URL("data/sierra_melt_timing_profiles.csv", document.baseURI).href;
+
+// View box (lon/lat). Trimmed to the network's content so the map fills the
+// frame: the empty far-north and dead east margin are cropped, which zooms in
+// moderately. Map geometry that falls outside is clipped (see drawScene4BaseMap).
+const SCENE4_BBOX = { west: -122.6, east: -117.45, south: 33.85, north: 40.55 };
+
+// Approximate outline of the Sierra Nevada range: gentle western foothill line and
+// steep eastern escarpment, wider in the north (Tahoe latitude), tapering south to
+// Tehachapi. Geographic reference only -- not the exact CMIP6 analysis box.
+// Ordered clockwise: north tip -> south down the west foothills -> north up the east front.
+const SCENE4_SIERRA_OUTLINE = [
+  [-121.00, 40.25],
+  [-121.35, 39.75], [-121.15, 39.30], [-120.85, 38.80], [-120.55, 38.30],
+  [-120.10, 37.75], [-119.65, 37.25], [-119.20, 36.70], [-118.80, 36.20],
+  [-118.55, 35.65], [-118.40, 35.05],
+  [-118.05, 35.35], [-118.00, 35.95], [-118.15, 36.45], [-118.45, 37.00],
+  [-118.80, 37.55], [-119.10, 38.05], [-119.45, 38.55], [-119.70, 39.00],
+  [-119.95, 39.45], [-120.25, 39.95],
+];
+
+// State boundaries (CA/NV + neighbors), public-domain GeoJSON trimmed locally.
+const SCENE4_STATES_URL = new URL("data/states.geojson", document.baseURI).href;
+
+// Branch + base width metadata for the six target rivers in the network.
+const SCENE4_RIVER_META = {
+  "Sacramento River": { branch: "west",  baseWidth: 8 },
+  "San Joaquin River": { branch: "west",  baseWidth: 7 },
+  "Truckee River":     { branch: "east",  baseWidth: 5 },
+  "Carson River":      { branch: "east",  baseWidth: 4 },
+  "Walker River":      { branch: "east",  baseWidth: 4 },
+  "Owens River":       { branch: "owens", baseWidth: 5 },
+};
+
+// Approximate paths used only when a target river is absent from the GeoJSON.
+const SCENE4_FALLBACK_GEOMETRY = {
+  "Truckee River": [
+    [-120.13, 39.17], [-120.19, 39.33], [-120.00, 39.44], [-119.81, 39.53],
+    [-119.70, 39.65], [-119.61, 39.80], [-119.58, 39.96],
+  ],
+  "Carson River": [
+    [-119.83, 38.62], [-119.78, 38.85], [-119.77, 39.16], [-119.55, 39.24],
+    [-119.30, 39.28], [-118.97, 39.43],
+  ],
+  "Walker River": [
+    [-119.45, 38.40], [-119.28, 38.50], [-119.10, 38.55], [-118.90, 38.61],
+    [-118.78, 38.66], [-118.71, 38.72],
+  ],
+  "Owens River": [
+    [-118.72, 37.73], [-118.55, 37.52], [-118.42, 37.30], [-118.25, 37.05],
+    [-118.12, 36.80], [-118.01, 36.55], [-117.96, 36.43],
+  ],
+};
+
+// The engineered Los Angeles Aqueduct (Owens Lake -> Los Angeles).
+const SCENE4_AQUEDUCT_GEOMETRY = [
+  [-117.96, 36.43], [-117.98, 35.95], [-118.05, 35.40], [-118.16, 34.90],
+  [-118.27, 34.45], [-118.24, 34.28],
+];
+
+// Region / city dependency nodes by branch.
+const SCENE4_NODES = [
+  { id: "centralvalley", label: "Central Valley farms", lon: -120.55, lat: 37.05, branch: "west",  kind: "region", color: "var(--s4-valley)" },
+  { id: "bayarea",       label: "Bay Area",             lon: -122.25, lat: 37.85, branch: "west",  kind: "city",   color: "var(--s4-valley)" },
+  { id: "socal",         label: "Southern California",  lon: -117.55, lat: 34.55, branch: "west",  kind: "region", color: "var(--s4-valley)" },
+  { id: "reno",          label: "Reno-Sparks",          lon: -119.81, lat: 39.53, branch: "east",  kind: "city",   color: "var(--s4-nevada)" },
+  { id: "pyramid",       label: "Pyramid Lake",         lon: -119.58, lat: 39.99, branch: "east",  kind: "lake",   color: "var(--s4-nevada)" },
+  { id: "lahontan",      label: "Lahontan Valley",      lon: -118.97, lat: 39.45, branch: "east",  kind: "region", color: "var(--s4-nevada)" },
+  { id: "walkerlake",    label: "Walker Lake",          lon: -118.71, lat: 38.74, branch: "east",  kind: "lake",   color: "var(--s4-nevada)" },
+  { id: "la",            label: "Los Angeles",          lon: -118.24, lat: 34.05, branch: "owens", kind: "city",   color: "var(--s4-owens)" },
+];
+
+// Region polygons (loose blobs) so branches read as dependency areas.
+const SCENE4_REGIONS = [
+  {
+    id: "centralvalley", branch: "west", color: "var(--s4-valley-dim)", stroke: "var(--s4-valley)",
+    coords: [[-121.9, 39.5], [-120.9, 39.7], [-119.9, 37.6], [-119.6, 36.6], [-120.4, 36.3], [-121.3, 37.6], [-122.0, 38.6]],
+  },
+  {
+    id: "wnevada", branch: "east", color: "var(--s4-nevada-dim)", stroke: "var(--s4-nevada)",
+    coords: [[-120.1, 40.3], [-118.6, 40.2], [-118.4, 38.5], [-119.4, 38.3], [-120.2, 39.3]],
+  },
+];
+
+const scene4 = {
+  initialized: false,
+  meltProfiles: null,     // { scenario: { month: {snw_index, mean, median, model_count} } }
+  meltOk: false,
+  rivers: [],             // [{ name, branch, baseWidth, feature, node, length }]
+  states: [],             // state-boundary GeoJSON features (CA/NV + neighbors)
+  histPeakMonth: 4,
+  projection: null,
+  path: null,
+  width: 0,
+  height: 0,
+  current: { scenario: "historical", month: 4, step: 0, branchHighlight: "all" },
+  // Per-dimension user locks: once a control is clicked, scroll stops overriding it.
+  lock: { scenario: false, month: false, branch: false },
+  visualScale: 1,
+  particlesOn: false,
+  particles: [],
+  raf: null,
+  lastTs: 0,
+  baseSpawnInterval: 820, // ms at visualScale = 1
+  // Fallback visual scales (used only if the CMIP6 CSV fails to load).
+  fallback: { historical: 1.0, ssp245: 0.7, ssp585: 0.45 },
+  el: {},
+};
+
+function getScene4ScenarioLabel(scenario) {
+  if (scenario === "ssp245") return "SSP2-4.5";
+  if (scenario === "ssp585") return "SSP5-8.5";
+  return "Historical";
+}
+
+function getScene4MonthLabel(month) {
+  const idx = Math.max(1, Math.min(12, month)) - 1;
+  return SCENE4_MONTH_FULL[idx];
+}
+
+// Returns the snw_index (0-100 scale) for a scenario/month.
+// Falls back to a fixed visual value (x100) when the CSV is unavailable.
+function getScene4MeltValue(scenario, month) {
+  if (scene4.meltOk && scene4.meltProfiles[scenario] && scene4.meltProfiles[scenario][month]) {
+    return scene4.meltProfiles[scenario][month].snw_index;
+  }
+  const f = scene4.fallback[scenario];
+  return (f !== undefined ? f : 0.6) * 100;
+}
+
+function getScene4VisualScale(snwIndex) {
+  return Math.max(0.15, Math.min(1.25, snwIndex / 100));
+}
+
+async function loadScene4MeltProfiles() {
+  if (window.location.protocol === "file:") throw new Error("FILE_PROTOCOL");
+  const response = await fetch(SCENE4_MELT_URL);
+  if (!response.ok) throw new Error(`HTTP ${response.status} loading ${SCENE4_MELT_URL}`);
+
+  const rows = d3.csvParse(await response.text(), (d) => ({
+    scenario: (d.scenario || "").trim(),
+    month: +d.month,
+    mean: +d.mean,
+    median: +d.median,
+    model_count: +d.model_count,
+    snw_index: +d.snw_index,
+  }));
+
+  const profiles = {};
+  rows.forEach((d) => {
+    if (!d.scenario || !Number.isFinite(d.month)) return;
+    (profiles[d.scenario] || (profiles[d.scenario] = {}))[d.month] = {
+      snw_index: d.snw_index,
+      mean: d.mean,
+      median: d.median,
+      model_count: d.model_count,
+    };
+  });
+
+  if (!profiles.historical) throw new Error("No historical rows in melt profiles CSV.");
+  return profiles;
+}
+
+async function loadScene4States() {
+  if (window.location.protocol === "file:") return [];
+  try {
+    const response = await fetch(SCENE4_STATES_URL);
+    if (!response.ok) return [];
+    const geo = await response.json();
+    return (geo && geo.features) ? geo.features : [];
+  } catch (err) {
+    console.warn("Scene 4: states.geojson could not be loaded; skipping outlines.", err);
+    return [];
+  }
+}
+
+async function loadScene4Rivers() {
+  if (window.location.protocol === "file:") return [];
+  try {
+    const response = await fetch(SCENE4_RIVERS_URL);
+    if (!response.ok) return [];
+    const geo = await response.json();
+    return (geo && geo.features) ? geo.features : [];
+  } catch (err) {
+    console.warn("Scene 4: rivers.geojson could not be loaded; using fallbacks.", err);
+    return [];
+  }
+}
+
+// Map a raw GeoJSON name to one of the canonical target river names.
+function normalizeScene4RiverName(rawName) {
+  const n = (rawName || "").toLowerCase();
+  if (n.includes("sacramento")) return "Sacramento River";
+  if (n.includes("san joaquin")) return "San Joaquin River";
+  if (n.includes("truckee")) return "Truckee River";
+  if (n.includes("carson")) return "Carson River";
+  if (n.includes("walker")) return "Walker River";
+  if (n.includes("owens")) return "Owens River";
+  return null;
+}
+
+function makeScene4FallbackRiverFeatures(existingRiverNames) {
+  const have = new Set(existingRiverNames);
+  const features = [];
+  Object.keys(SCENE4_FALLBACK_GEOMETRY).forEach((name) => {
+    if (have.has(name)) return;
+    const meta = SCENE4_RIVER_META[name];
+    features.push({
+      name,
+      branch: meta.branch,
+      baseWidth: meta.baseWidth,
+      isFallback: true,
+      feature: {
+        type: "Feature",
+        properties: { name },
+        geometry: { type: "LineString", coordinates: SCENE4_FALLBACK_GEOMETRY[name] },
+      },
+    });
+  });
+  return features;
+}
+
+function mergeLoadedAndFallbackScene4Rivers(loadedFeatures) {
+  const merged = [];
+  const seen = new Set();
+
+  loadedFeatures.forEach((feat) => {
+    const props = feat.properties || {};
+    const canonical = normalizeScene4RiverName(props.name || props.name_en || props.originalName);
+    if (!canonical || !SCENE4_RIVER_META[canonical] || seen.has(canonical)) return;
+    seen.add(canonical);
+    const meta = SCENE4_RIVER_META[canonical];
+    merged.push({
+      name: canonical,
+      branch: meta.branch,
+      baseWidth: meta.baseWidth,
+      isFallback: false,
+      feature: feat,
+    });
+  });
+
+  // Add approximate paths for any target river still missing.
+  return merged.concat(makeScene4FallbackRiverFeatures([...seen]));
+}
+
+async function loadScene4Data() {
+  // Melt profiles (drives river thickness).
+  try {
+    scene4.meltProfiles = await loadScene4MeltProfiles();
+    scene4.meltOk = true;
+    // Historical peak melt month (1-12) for the baseline default.
+    const hist = scene4.meltProfiles.historical;
+    let peakMonth = 4, peakVal = -Infinity;
+    Object.keys(hist).forEach((m) => {
+      if (hist[m].snw_index > peakVal) { peakVal = hist[m].snw_index; peakMonth = +m; }
+    });
+    scene4.histPeakMonth = peakMonth;
+  } catch (err) {
+    console.warn("Scene 4: melt profile CSV not loaded; using visual fallback values.", err);
+    scene4.meltOk = false;
+  }
+
+  // River geometry (real where available, fallback where not).
+  const loaded = await loadScene4Rivers();
+  scene4.rivers = mergeLoadedAndFallbackScene4Rivers(loaded);
+
+  // State boundaries for geographic context (optional; skipped if unavailable).
+  scene4.states = await loadScene4States();
+}
+
+function scene4Measure() {
+  const wrap = scene4.el.svgWrap;
+  if (!wrap) return false;
+  const rect = wrap.getBoundingClientRect();
+  scene4.width = Math.max(10, rect.width);
+  scene4.height = Math.max(10, rect.height);
+  return true;
+}
+
+function setupScene4Projection() {
+  const { west, east, south, north } = SCENE4_BBOX;
+  const bounds = {
+    type: "Feature",
+    geometry: {
+      type: "Polygon",
+      coordinates: [[
+        [west, north], [east, north], [east, south], [west, south], [west, north],
+      ]],
+    },
+  };
+  const pad = 10;
+  scene4.projection = d3.geoMercator()
+    .fitExtent([[pad, pad], [scene4.width - pad, scene4.height - pad]], bounds);
+  scene4.path = d3.geoPath(scene4.projection);
+}
+
+function scene4LonLat(lon, lat) {
+  return scene4.projection([lon, lat]);
+}
+
+function drawScene4BaseMap() {
+  const svg = scene4.el.svg;
+  svg.attr("width", scene4.width).attr("height", scene4.height);
+
+  // <defs>: clip rectangle (= SVG frame) so map geometry cropped by the
+  // zoomed-in view doesn't spill into the controls. Node labels are
+  // intentionally left unclipped so edge labels stay fully readable.
+  let defs = svg.select("defs");
+  if (defs.empty()) {
+    defs = svg.append("defs");
+    defs.append("clipPath").attr("id", "scene4-bbox-clip").append("rect")
+      .attr("class", "scene4-bbox-clip-rect");
+  }
+
+  // Keep the clip rect sized to the visible SVG frame.
+  svg.select("#scene4-bbox-clip rect.scene4-bbox-clip-rect")
+    .attr("x", 0).attr("y", 0)
+    .attr("width", scene4.width).attr("height", scene4.height);
+
+  // Layer groups, drawn back-to-front, created once. Geometry layers are clipped
+  // to the frame; gNodes is not, so labels near the edges remain visible.
+  if (!scene4.el.gStates) {
+    scene4.el.gStates    = svg.append("g").attr("class", "scene4-layer-states")
+      .attr("clip-path", "url(#scene4-bbox-clip)");
+    scene4.el.gRegions   = svg.append("g").attr("class", "scene4-layer-regions")
+      .attr("clip-path", "url(#scene4-bbox-clip)");
+    scene4.el.gSnow      = svg.append("g").attr("class", "scene4-layer-snow")
+      .attr("clip-path", "url(#scene4-bbox-clip)");
+    scene4.el.gRivers    = svg.append("g").attr("class", "scene4-layer-rivers")
+      .attr("clip-path", "url(#scene4-bbox-clip)");
+    scene4.el.gAqueduct  = svg.append("g").attr("class", "scene4-layer-aqueduct")
+      .attr("clip-path", "url(#scene4-bbox-clip)");
+    scene4.el.gParticles = svg.append("g").attr("class", "scene4-layer-particles")
+      .attr("clip-path", "url(#scene4-bbox-clip)");
+    scene4.el.gNodes     = svg.append("g").attr("class", "scene4-layer-nodes");
+  }
+}
+
+// State boundaries for geographic context. Clipped to the frame so the polygons
+// that extend beyond the visible map (e.g. the rest of Oregon/Arizona) are cut off.
+function drawScene4States() {
+  const g = scene4.el.gStates;
+  if (!g) return;
+  const join = g.selectAll("path.scene4-state").data(scene4.states, (d, i) =>
+    (d.properties && d.properties.name) || i);
+  join.join("path")
+    .attr("class", "scene4-state")
+    .attr("data-name", (d) => (d.properties ? d.properties.name : ""))
+    .attr("d", (d) => scene4.path(d));
+}
+
+function drawScene4Regions() {
+  const join = scene4.el.gRegions.selectAll("path.scene4-region-shape")
+    .data(SCENE4_REGIONS, (d) => d.id);
+  join.join("path")
+    .attr("class", (d) => `scene4-region-shape scene4-region-${d.branch}`)
+    .attr("d", (d) => scene4.path({
+      type: "Polygon",
+      coordinates: [d.coords.concat([d.coords[0]])],
+    }))
+    .attr("fill", (d) => d.color)
+    .attr("stroke", (d) => d.stroke)
+    .attr("stroke-opacity", 0.35)
+    .attr("data-branch", (d) => d.branch);
+}
+
+function drawScene4SnowSource() {
+  const g = scene4.el.gSnow;
+  const c = scene4LonLat(-119.1, 38.25);
+
+  let label = g.select("text.scene4-snow-label");
+  if (label.empty()) label = g.append("text").attr("class", "scene4-snow-label");
+  label
+    .attr("x", c[0]).attr("y", c[1])
+    .attr("text-anchor", "middle")
+    .text("Sierra snowpack");
+}
+
+// Approximate outline of the Sierra Nevada range. Geographic reference only;
+// drawn in the snow layer so it frames the snowpack source.
+function drawScene4SierraArea() {
+  const g = scene4.el.gSnow;
+  if (!g) return;
+  const feature = {
+    type: "Feature",
+    geometry: {
+      type: "Polygon",
+      coordinates: [SCENE4_SIERRA_OUTLINE.concat([SCENE4_SIERRA_OUTLINE[0]])],
+    },
+  };
+
+  let path = g.select("path.scene4-sierra-area");
+  if (path.empty()) path = g.append("path").attr("class", "scene4-sierra-area");
+  path.attr("d", scene4.path(feature));
+
+  // Label near the wider northern end so it doesn't collide with the snow glow.
+  const anchor = scene4LonLat(-120.45, 40.0);
+  let label = g.select("text.scene4-sierra-label");
+  if (label.empty()) label = g.append("text").attr("class", "scene4-sierra-label");
+  label
+    .attr("x", anchor[0]).attr("y", anchor[1] - 6)
+    .attr("text-anchor", "middle")
+    .text("Sierra Nevada");
+}
+
+function drawScene4Rivers() {
+  const sel = scene4.el.gRivers.selectAll("path.scene4-river")
+    .data(scene4.rivers, (d) => d.name);
+
+  sel.join(
+    (enter) => enter.append("path")
+      .attr("class", (d) => `scene4-river scene4-river-${d.branch}`)
+      .attr("data-name", (d) => d.name)
+      .attr("data-branch", (d) => d.branch)
+      .on("mousemove", (event, d) => scene4ShowTooltip(event, d))
+      .on("mouseleave", scene4HideTooltip),
+    (update) => update,
+  )
+    .attr("d", (d) => scene4.path(d.feature))
+    .each(function (d) {
+      d.node = this;
+      d.length = this.getTotalLength();
+    });
+}
+
+function drawScene4Aqueduct() {
+  const g = scene4.el.gAqueduct;
+  const feature = {
+    type: "Feature",
+    properties: { name: "Los Angeles Aqueduct" },
+    geometry: { type: "LineString", coordinates: SCENE4_AQUEDUCT_GEOMETRY },
+  };
+  let path = g.select("path.scene4-aqueduct");
+  if (path.empty()) {
+    path = g.append("path")
+      .attr("class", "scene4-aqueduct")
+      .attr("data-name", "Los Angeles Aqueduct")
+      .attr("data-branch", "owens")
+      .on("mousemove", (event) => scene4ShowTooltip(event, {
+        name: "Los Angeles Aqueduct", branch: "owens", isAqueduct: true,
+      }))
+      .on("mouseleave", scene4HideTooltip);
+  }
+  path.attr("d", scene4.path(feature));
+}
+
+function drawScene4Nodes() {
+  const g = scene4.el.gNodes;
+
+  const dots = g.selectAll("circle.scene4-node-dot").data(SCENE4_NODES, (d) => d.id);
+  dots.join("circle")
+    .attr("class", (d) => `scene4-node-dot scene4-node-${d.branch}`)
+    .attr("data-branch", (d) => d.branch)
+    .attr("cx", (d) => scene4LonLat(d.lon, d.lat)[0])
+    .attr("cy", (d) => scene4LonLat(d.lon, d.lat)[1])
+    .attr("r", (d) => (d.kind === "region" ? 5.5 : 4))
+    .attr("fill", (d) => d.color)
+    .attr("stroke", "rgba(8,12,18,0.8)")
+    .attr("stroke-width", 1.2);
+
+  const labels = g.selectAll("text.scene4-node-label").data(SCENE4_NODES, (d) => d.id);
+  labels.join("text")
+    .attr("class", (d) => `scene4-node-label scene4-node-${d.branch}`)
+    .attr("data-branch", (d) => d.branch)
+    .attr("x", (d) => scene4LonLat(d.lon, d.lat)[0] + 8)
+    .attr("y", (d) => scene4LonLat(d.lon, d.lat)[1] + 3)
+    .text((d) => d.label);
+}
+
+function drawScene4Legend() {
+  const items = [
+    { swatch: `<span class="scene4-legend-swatch" style="width:26px;height:6px;border-radius:3px;background:var(--s4-river)"></span>`,
+      text: "Thick / bright river = stronger melt proxy" },
+    { swatch: `<span class="scene4-legend-swatch" style="width:26px;height:2px;border-radius:2px;background:var(--s4-river);opacity:0.4"></span>`,
+      text: "Thin / faint river = weaker melt proxy" },
+    { swatch: `<span class="scene4-legend-swatch" style="width:10px;height:10px;border-radius:50%;background:var(--s4-snow)"></span>`,
+      text: "Moving dots = downstream dependency direction" },
+    { swatch: `<span class="scene4-legend-swatch" style="width:26px;height:0;border-top:2px dashed var(--s4-owens)"></span>`,
+      text: "Dashed line = engineered aqueduct connection" },
+  ];
+  scene4.el.legend.innerHTML = items.map((it) =>
+    `<div class="scene4-legend-item">${it.swatch}<span>${it.text}</span></div>`).join("");
+}
+
+// Apply melt-proxy scaling + branch highlight to rivers, aqueduct, nodes, snow.
+function updateScene4RiverStress(visualScale) {
+  scene4.visualScale = visualScale;
+  const branch = scene4.current.branchHighlight;
+  const baseOpacity = 0.25 + 0.75 * Math.min(1, visualScale);
+
+  const inBranch = (b) => branch === "all" || branch === b;
+  const dim = (b) => (inBranch(b) ? 1 : 0.16);
+
+  scene4.el.gRivers.selectAll("path.scene4-river")
+    .transition().duration(650)
+    .attr("stroke-width", (d) => Math.max(0.6, d.baseWidth * visualScale))
+    .attr("opacity", (d) => baseOpacity * dim(d.branch));
+
+  scene4.el.gAqueduct.select("path.scene4-aqueduct")
+    .classed("is-animating", inBranch("owens"))
+    .transition().duration(650)
+    .attr("stroke-width", Math.max(1, 3 * visualScale))
+    .attr("opacity", (0.4 + 0.5 * Math.min(1, visualScale)) * dim("owens"));
+
+  scene4.el.gNodes.selectAll(".scene4-node-dot, .scene4-node-label")
+    .transition().duration(500)
+    .style("opacity", function () {
+      const b = this.getAttribute("data-branch");
+      return inBranch(b) ? 1 : 0.18;
+    });
+
+  scene4.el.gRegions.selectAll("path.scene4-region-shape")
+    .transition().duration(500)
+    .style("opacity", function () {
+      const b = this.getAttribute("data-branch");
+      return inBranch(b) ? 1 : 0.22;
+    });
+
+}
+
+// ---- Particles ----
+function animateScene4Particle(pathNode, visualScale) {
+  if (!pathNode) return;
+  const len = pathNode.__s3len || pathNode.getTotalLength();
+  pathNode.__s3len = len;
+  if (len < 5 || scene4.particles.length > 260) return;
+
+  const isAqueduct = pathNode.classList.contains("scene4-aqueduct");
+  const r = Math.max(0.8, 2.5 * visualScale);
+  const el = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+  el.setAttribute("class", "scene4-particle");
+  el.setAttribute("r", r);
+  el.setAttribute("fill", isAqueduct ? "var(--s4-owens)" : "var(--s4-snow)");
+  el.setAttribute("opacity", 0.85);
+  scene4.el.gParticles.node().appendChild(el);
+
+  scene4.particles.push({
+    el,
+    node: pathNode,
+    len,
+    dist: 0,
+    speed: 0.045 * (0.4 + visualScale), // px per ms
+  });
+}
+
+function scene4Tick(ts) {
+  if (!scene4.particlesOn) return;
+  if (!scene4.lastTs) scene4.lastTs = ts;
+  const dt = Math.min(60, ts - scene4.lastTs);
+  scene4.lastTs = ts;
+
+  const vs = scene4.visualScale;
+  const branch = scene4.current.branchHighlight;
+  const inBranch = (b) => branch === "all" || branch === b;
+  const interval = scene4.baseSpawnInterval / Math.max(0.12, vs);
+
+  // Spawn along rivers (and aqueduct) currently in the active branch.
+  scene4.rivers.forEach((r) => {
+    if (!r.node || !inBranch(r.branch)) return;
+    r.spawnAcc = (r.spawnAcc || 0) + dt;
+    if (r.spawnAcc >= interval) {
+      r.spawnAcc = 0;
+      animateScene4Particle(r.node, vs);
+    }
+  });
+
+  const aq = scene4.el.gAqueduct.select("path.scene4-aqueduct").node();
+  if (aq && inBranch("owens")) {
+    scene4.aqAcc = (scene4.aqAcc || 0) + dt;
+    if (scene4.aqAcc >= interval * 1.2) {
+      scene4.aqAcc = 0;
+      animateScene4Particle(aq, vs);
+    }
+  }
+
+  // Advance existing particles.
+  scene4.particles = scene4.particles.filter((p) => {
+    p.dist += p.speed * dt;
+    if (p.dist >= p.len) { p.el.remove(); return false; }
+    const pt = p.node.getPointAtLength(p.dist);
+    p.el.setAttribute("cx", pt.x);
+    p.el.setAttribute("cy", pt.y);
+    return true;
+  });
+
+  scene4.raf = requestAnimationFrame(scene4Tick);
+}
+
+function startScene4Particles() {
+  if (scene4.particlesOn) return;
+  scene4.particlesOn = true;
+  scene4.lastTs = 0;
+  scene4.raf = requestAnimationFrame(scene4Tick);
+}
+
+function stopScene4Particles() {
+  scene4.particlesOn = false;
+  if (scene4.raf) cancelAnimationFrame(scene4.raf);
+  scene4.raf = null;
+  scene4.particles.forEach((p) => p.el.remove());
+  scene4.particles = [];
+}
+
+// ---- Tooltip ----
+function scene4ShowTooltip(event, d) {
+  const tt = scene4.el.tooltip;
+  if (!tt) return;
+  const scenario = scene4.current.scenario;
+  const month = scene4.current.month;
+  const meta = (scene4.meltOk && scene4.meltProfiles[scenario] && scene4.meltProfiles[scenario][month])
+    ? scene4.meltProfiles[scenario][month] : null;
+  const snwIndex = getScene4MeltValue(scenario, month);
+  const modelCount = meta ? meta.model_count : "—";
+
+  tt.innerHTML = `
+    <div class="scene4-tt-title">${d.name}</div>
+    <div class="scene4-tt-row">Branch · <b>${scene4BranchLabel(d.branch)}</b></div>
+    <div class="scene4-tt-row">Scenario · <b>${getScene4ScenarioLabel(scenario)}</b></div>
+    <div class="scene4-tt-row">Month · <b>${getScene4MonthLabel(month)}</b></div>
+    <div class="scene4-tt-row">Melt proxy (snw_index) · <b>${snwIndex.toFixed(1)}</b></div>
+    <div class="scene4-tt-row">Models · <b>${modelCount}</b></div>
+    <div class="scene4-tt-note">melt proxy, not measured flow</div>`;
+  tt.classList.add("visible");
+  scene4PositionTooltip(event);
+}
+
+function scene4PositionTooltip(event) {
+  const tt = scene4.el.tooltip;
+  if (!tt) return;
+  const rect = tt.getBoundingClientRect();
+  const pad = 12;
+  let x = event.clientX + pad;
+  let y = event.clientY - rect.height - pad;
+  if (x + rect.width > window.innerWidth - 8) x = event.clientX - rect.width - pad;
+  if (y < 8) y = event.clientY + pad;
+  tt.style.left = `${x}px`;
+  tt.style.top = `${y}px`;
+}
+
+function scene4HideTooltip() {
+  const tt = scene4.el.tooltip;
+  if (tt) tt.classList.remove("visible");
+}
+
+function scene4BranchLabel(branch) {
+  if (branch === "west") return "Western slope (California)";
+  if (branch === "east") return "Eastern slope (W. Nevada)";
+  if (branch === "owens") return "Owens Valley → Los Angeles";
+  return "All branches";
+}
+
+// ---- Caption ----
+function scene4UpdateCaption() {
+  const cap = scene4.el.caption;
+  if (!cap) return;
+  const base = "River thickness is scaled by the project\u2019s CMIP6-derived Sierra melt proxy, " +
+    "normalized so the historical peak melt month equals 100. It represents relative upstream " +
+    "snowmelt stress/timing, not exact river discharge or managed water deliveries.";
+  if (!scene4.meltOk) {
+    cap.classList.add("is-warning");
+    cap.textContent = "CMIP6 melt profile data not loaded; using visual fallback values. " + base;
+  } else {
+    cap.classList.remove("is-warning");
+    cap.textContent = base;
+  }
+}
+
+function scene4UpdateStateLabel() {
+  const el = scene4.el.stateLabel;
+  if (!el) return;
+  const snw = getScene4MeltValue(scene4.current.scenario, scene4.current.month);
+  el.textContent =
+    `${getScene4ScenarioLabel(scene4.current.scenario)} · ${getScene4MonthLabel(scene4.current.month)} · proxy ${snw.toFixed(0)}`;
+}
+
+// ---- Central update ----
+function updateScene4({ scenario, month, step, branchHighlight } = {}) {
+  if (scenario !== undefined) scene4.current.scenario = scenario;
+  if (month !== undefined) scene4.current.month = month;
+  if (step !== undefined) scene4.current.step = step;
+  if (branchHighlight !== undefined) scene4.current.branchHighlight = branchHighlight;
+
+  const snw = getScene4MeltValue(scene4.current.scenario, scene4.current.month);
+  const visualScale = getScene4VisualScale(snw);
+
+  updateScene4RiverStress(visualScale);
+  scene4SyncControls();
+  scene4UpdateStateLabel();
+
+  // Particles begin from step 1 onward (subtle), unless a user override is active.
+  if (scene4.current.step >= 1 || scene4.lock.scenario || scene4.lock.month || scene4.lock.branch) {
+    startScene4Particles();
+  } else {
+    stopScene4Particles();
+  }
+}
+
+// ---- Controls ----
+function scene4SyncControls() {
+  const root = scene4.el.section;
+  root.querySelectorAll('.scene4-btn[data-scenario]').forEach((b) =>
+    b.classList.toggle("is-active", b.dataset.scenario === scene4.current.scenario));
+  root.querySelectorAll('.scene4-btn[data-branch]').forEach((b) =>
+    b.classList.toggle("is-active", b.dataset.branch === scene4.current.branchHighlight));
+  root.querySelectorAll('.scene4-btn[data-month]').forEach((b) =>
+    b.classList.toggle("is-active", +b.dataset.month === scene4.current.month));
+}
+
+function setupScene4Controls() {
+  const root = scene4.el.section;
+
+  // Build month buttons.
+  const monthWrap = root.querySelector(".scene4-months");
+  if (monthWrap) {
+    monthWrap.innerHTML = SCENE4_MONTH_LABELS.map((m, i) =>
+      `<button class="scene4-btn" data-month="${i + 1}">${m}</button>`).join("");
+  }
+
+  root.querySelectorAll(".scene4-btn[data-scenario]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      scene4.lock.scenario = true;
+      updateScene4({ scenario: btn.dataset.scenario });
+    });
+  });
+  root.querySelectorAll(".scene4-btn[data-branch]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      scene4.lock.branch = true;
+      updateScene4({ branchHighlight: btn.dataset.branch });
+    });
+  });
+  root.querySelectorAll(".scene4-btn[data-month]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      scene4.lock.month = true;
+      updateScene4({ month: +btn.dataset.month });
+    });
+  });
+}
+
+// ---- Scroll observer ----
+function setupScene4ScrollObserver() {
+  const stepEls = scene4.el.section.querySelectorAll(".scene4-step");
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (!entry.isIntersecting) return;
+      const ds = entry.target.dataset;
+      entry.target.classList.add("is-active");
+      stepEls.forEach((s) => { if (s !== entry.target) s.classList.remove("is-active"); });
+
+      // Scroll only drives dimensions the user has not locked via controls.
+      const patch = { step: +ds.step };
+      if (!scene4.lock.scenario && ds.scenario) patch.scenario = ds.scenario;
+      if (!scene4.lock.month && ds.month) patch.month = +ds.month;
+      if (!scene4.lock.branch && ds.branch) patch.branchHighlight = ds.branch;
+      updateScene4(patch);
+    });
+  }, { threshold: 0.55 });
+  stepEls.forEach((s) => observer.observe(s));
+}
+
+function scene4Resize() {
+  if (!scene4.initialized) return;
+  if (!scene4Measure()) return;
+  setupScene4Projection();
+  drawScene4BaseMap();
+  drawScene4States();
+  drawScene4Regions();
+  drawScene4SnowSource();
+  drawScene4SierraArea();
+  drawScene4Rivers();
+  drawScene4Aqueduct();
+  drawScene4Nodes();
+  updateScene4RiverStress(scene4.visualScale);
+}
+
+async function initScene4RiverNetwork() {
+  const section = document.getElementById("scene-4-river-network");
+  if (!section) return;
+
+  scene4.el.section = section;
+  scene4.el.svg = d3.select("#scene4-river-svg");
+  scene4.el.svgWrap = section.querySelector(".scene4-svg-wrap");
+  scene4.el.legend = section.querySelector(".scene4-legend");
+  scene4.el.caption = section.querySelector(".scene4-caption");
+  scene4.el.stateLabel = section.querySelector(".scene4-state-label");
+
+  // Dedicated tooltip element appended once to the body.
+  let tt = document.querySelector(".scene4-tooltip");
+  if (!tt) {
+    tt = document.createElement("div");
+    tt.className = "scene4-tooltip";
+    document.body.appendChild(tt);
+  }
+  scene4.el.tooltip = tt;
+
+  await loadScene4Data();
+
+  if (!scene4Measure()) {
+    // Layout not ready yet; retry on next frame.
+    requestAnimationFrame(() => initScene4RiverNetwork());
+    return;
+  }
+
+  setupScene4Projection();
+  drawScene4BaseMap();
+  drawScene4States();
+  drawScene4Regions();
+  drawScene4SnowSource();
+  drawScene4SierraArea();
+  drawScene4Rivers();
+  drawScene4Aqueduct();
+  drawScene4Nodes();
+  drawScene4Legend();
+
+  setupScene4Controls();
+  setupScene4ScrollObserver();
+  scene4UpdateCaption();
+
+  scene4.initialized = true;
+
+  // Baseline default: historical peak month (fallback to April / month 4).
+  const baselineMonth = scene4.meltOk ? scene4.histPeakMonth : 4;
+  scene4.current.month = baselineMonth;
+  // Reflect the baseline month in the step-0 default for scroll consistency.
+  const step0 = section.querySelector('.scene4-step[data-step="0"]');
+  if (step0) step0.dataset.month = String(baselineMonth);
+  const step1 = section.querySelector('.scene4-step[data-step="1"]');
+  if (step1) step1.dataset.month = String(baselineMonth);
+
+  updateScene4({ scenario: "historical", month: baselineMonth, step: 0, branchHighlight: "all" });
+
+  // Keep the map sized to its sticky container.
+  if (typeof ResizeObserver !== "undefined") {
+    const ro = new ResizeObserver(() => scene4Resize());
+    ro.observe(scene4.el.svgWrap);
+  }
+  window.addEventListener("resize", scene4Resize);
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initScene4RiverNetwork);
+} else {
+  initScene4RiverNetwork();
+}
