@@ -555,8 +555,6 @@ const observer = new IntersectionObserver((entries) => {
   entries.forEach(entry => {
     if (entry.isIntersecting) {
       const i = +entry.target.dataset.step;
-      // Deactivate scene 5 dots when main scene is in view
-      dots.forEach((d, j) => { if (j >= 4) d.classList.remove("active"); });
       setStep(i);
     }
   });
@@ -565,15 +563,10 @@ const observer = new IntersectionObserver((entries) => {
 steps.forEach(s => observer.observe(s));
 
 // Progress dot navigation
-dots.forEach((d, j) => {
+dots.forEach(d => {
   d.addEventListener("click", () => {
     const i = +d.dataset.step;
-    if (j < 4) {
-      steps[i].scrollIntoView({ behavior:"smooth", block:"center" });
-    } else {
-      // dots 4–7 have data-step="4"–"7"; scene 5 steps are indexed 0–3
-      steps5[i - 4].scrollIntoView({ behavior:"smooth", block:"center" });
-    }
+    steps[i].scrollIntoView({ behavior:"smooth", block:"center" });
   });
 });
 
@@ -611,14 +604,14 @@ const yAxisG5  = root5.append("g").attr("class","y-axis");
 const histAreaPath5 = root5.append("path").attr("class","hist-area-5");
 const histLinePath5 = root5.append("path").attr("class","hist-line-5");
 
-const modAreaPath5 = root5.append("path").attr("class","mod-area-5").attr("opacity",0);
-const modLinePath5 = root5.append("path").attr("class","mod-line-5").attr("opacity",0);
+const modAreaPath5 = root5.append("path").attr("class","mod-area-5");
+const modLinePath5 = root5.append("path").attr("class","mod-line-5");
 
-const projAreaPath5 = root5.append("path").attr("class","proj-area-5").attr("opacity",0);
-const projLinePath5 = root5.append("path").attr("class","proj-line-5").attr("opacity",0);
+const projAreaPath5 = root5.append("path").attr("class","proj-area-5");
+const projLinePath5 = root5.append("path").attr("class","proj-line-5");
 
-// Diff annotation group (shown at step 3)
-const diffAnnotation5 = root5.append("g").attr("class","diff-annotation").attr("opacity",0);
+// Diff annotation always visible in static version
+const diffAnnotation5 = root5.append("g").attr("class","diff-annotation");
 diffAnnotation5.append("line").attr("class","diff-line-mod")
   .attr("stroke","var(--green)").attr("stroke-width",1).attr("stroke-dasharray","3 3");
 diffAnnotation5.append("line").attr("class","diff-line-high")
@@ -683,23 +676,27 @@ function draw5() {
   if (moderate) {
     modAreaPath5
       .attr("d", area5(moderate))
-      .attr("fill","var(--green-dim)");
+      .attr("fill","var(--green-dim)")
+      .attr("opacity", 1);
     modLinePath5
       .attr("d", line5(moderate))
       .attr("fill","none")
       .attr("stroke","var(--green)")
-      .attr("stroke-width",2.5);
+      .attr("stroke-width",2.5)
+      .attr("opacity", 1);
   }
 
   if (projected) {
     projAreaPath5
       .attr("d", area5(projected))
-      .attr("fill","var(--red-dim)");
+      .attr("fill","var(--red-dim)")
+      .attr("opacity", 1);
     projLinePath5
       .attr("d", line5(projected))
       .attr("fill","none")
       .attr("stroke","var(--red)")
-      .attr("stroke-width",2.5);
+      .attr("stroke-width",2.5)
+      .attr("opacity", 1);
   }
 
   // Diff annotation — vertical gap at Feb peak between mod and proj
@@ -755,76 +752,13 @@ if (typeof ResizeObserver !== "undefined") {
   if (svg5Node) chartObserver5.observe(svg5Node);
 }
 
-// Scene 5 scroll state machine
-const state5 = {
-  0: () => {
-    modAreaPath5.transition().duration(500).attr("opacity",0);
-    modLinePath5.transition().duration(500).attr("opacity",0);
-    projAreaPath5.transition().duration(500).attr("opacity",0);
-    projLinePath5.transition().duration(500).attr("opacity",0);
-    diffAnnotation5.transition().duration(400).attr("opacity",0);
-    document.getElementById("legend-moderate-5").classList.remove("visible");
-    document.getElementById("legend-high-5").classList.remove("visible");
-    document.getElementById("scenario-toggle").classList.remove("visible");
-  },
-  1: () => {
-    modAreaPath5.transition().duration(700).attr("opacity",1);
-    modLinePath5.transition().duration(700).attr("opacity",1);
-    projAreaPath5.transition().duration(400).attr("opacity",0);
-    projLinePath5.transition().duration(400).attr("opacity",0);
-    diffAnnotation5.transition().duration(400).attr("opacity",0);
-    document.getElementById("legend-moderate-5").classList.add("visible");
-    document.getElementById("legend-high-5").classList.remove("visible");
-    document.getElementById("scenario-toggle").classList.remove("visible");
-  },
-  2: () => {
-    modAreaPath5.transition().duration(500).attr("opacity",0.2);
-    modLinePath5.transition().duration(500).attr("opacity",0.35);
-    projAreaPath5.transition().duration(700).attr("opacity",1);
-    projLinePath5.transition().duration(700).attr("opacity",1);
-    diffAnnotation5.transition().duration(400).attr("opacity",0);
-    document.getElementById("legend-moderate-5").classList.add("visible");
-    document.getElementById("legend-high-5").classList.add("visible");
-    document.getElementById("scenario-toggle").classList.remove("visible");
-  },
-  3: () => {
-    modAreaPath5.transition().duration(500).attr("opacity",1);
-    modLinePath5.transition().duration(500).attr("opacity",1);
-    projAreaPath5.transition().duration(500).attr("opacity",1);
-    projLinePath5.transition().duration(500).attr("opacity",1);
-    diffAnnotation5.transition().duration(700).delay(300).attr("opacity",1);
-    document.getElementById("legend-moderate-5").classList.add("visible");
-    document.getElementById("legend-high-5").classList.add("visible");
-    document.getElementById("scenario-toggle").classList.add("visible");
-  },
-};
-
-let currentStep5 = 0;
-
-function setStep5(i) {
-  currentStep5 = i;
-  // dots 4–7 correspond to scene 5 steps 0–3
-  dots.forEach((d, j) => {
-    if (j >= 4) d.classList.toggle("active", j - 4 === i);
-  });
-  if (state5[i]) state5[i]();
+// Redraw scene 5 when it enters the viewport to get correct in-viewport dimensions
+const scene5El = document.getElementById("scene-5");
+if (scene5El) {
+  new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) draw5(); });
+  }, { threshold: 0.1 }).observe(scene5El);
 }
-
-// Scene 5 IntersectionObserver
-const steps5 = document.querySelectorAll(".step-s5");
-const observer5 = new IntersectionObserver((entries) => {
-  entries.forEach(entry => {
-    if (entry.isIntersecting) {
-      const i = +entry.target.dataset.step;
-      dots.forEach((d, j) => { if (j < 4) d.classList.remove("active"); });
-      // Redraw with in-viewport dimensions — off-screen getBoundingClientRect is unreliable
-      draw5();
-      setStep5(i);
-    }
-  });
-}, { threshold: 0.5 });
-
-steps5.forEach(s => observer5.observe(s));
 
 // Scenario toggle buttons
 document.querySelectorAll(".toggle-btn").forEach(btn => {

@@ -371,12 +371,11 @@ body {
 #scene-5 {
   position: relative;
   display: flex;
-  align-items: flex-start;
+  align-items: stretch;
+  min-height: 100vh;
 }
 
 #sticky-chart-5 {
-  position: sticky;
-  top: 0;
   width: 58%;
   height: 100vh;
   display: flex;
@@ -385,33 +384,20 @@ body {
   padding: 2rem 2rem 2rem 3rem;
 }
 
-#scroll-text-5 {
+#scene5-text {
   width: 42%;
   padding: 0 2.5rem 0 2rem;
+  display: flex;
+  align-items: center;
 }
 
-.step-s5 {
-  min-height: 100vh;
-}
-
-.step-s5:first-child { padding-top: 10vh; }
-.step-s5:last-child  { padding-bottom: 20vh; }
-
-.step-s5 .step-inner {
-  position: sticky;
-  top: 50%;
-  transform: translateY(-50%);
+#scene5-text .step-inner {
   background: var(--bg-panel);
   border: 1px solid var(--rule);
   border-radius: 2px;
   padding: 2rem;
   max-width: 380px;
 }
-
-.step-s5[data-step="0"] .step-inner { z-index: 1; }
-.step-s5[data-step="1"] .step-inner { z-index: 2; }
-.step-s5[data-step="2"] .step-inner { z-index: 3; }
-.step-s5[data-step="3"] .step-inner { z-index: 4; }
 
 #chart-title-5 {
   font-family: 'Playfair Display', serif;
@@ -499,15 +485,9 @@ body {
   background: rgba(255,255,255,0.07);
 }
 
-/* Legend item for moderate scenario */
+/* Legend items are always visible in static version */
 #legend-moderate-5,
 #legend-high-5 {
-  opacity: 0;
-  transition: opacity 0.5s;
-}
-
-#legend-moderate-5.visible,
-#legend-high-5.visible {
   opacity: 1;
 }
 
