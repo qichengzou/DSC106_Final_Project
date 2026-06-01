@@ -888,23 +888,12 @@ function drawScene3BaseMap() {
   const svg = scene3.el.svg;
   svg.attr("width", scene3.width).attr("height", scene3.height);
 
-  // <defs> with a soft radial gradient for the snow/melt source.
+  // <defs>: clip rectangle (= SVG frame) so map geometry cropped by the
+  // zoomed-in view doesn't spill into the controls. Node labels are
+  // intentionally left unclipped so edge labels stay fully readable.
   let defs = svg.select("defs");
   if (defs.empty()) {
     defs = svg.append("defs");
-    const grad = defs.append("radialGradient")
-      .attr("id", "scene3-snow-glow")
-      .attr("cx", "50%").attr("cy", "50%").attr("r", "50%");
-    grad.append("stop").attr("offset", "0%")
-      .attr("stop-color", "var(--s3-snow)").attr("stop-opacity", 0.85);
-    grad.append("stop").attr("offset", "45%")
-      .attr("stop-color", "var(--s3-river)").attr("stop-opacity", 0.35);
-    grad.append("stop").attr("offset", "100%")
-      .attr("stop-color", "var(--s3-river)").attr("stop-opacity", 0);
-
-    // Clip rectangle (= SVG frame) so map geometry cropped by the zoomed-in
-    // view doesn't spill into the controls. Node labels are intentionally left
-    // unclipped so edge labels stay fully readable.
     defs.append("clipPath").attr("id", "scene3-bbox-clip").append("rect")
       .attr("class", "scene3-bbox-clip-rect");
   }
@@ -964,19 +953,11 @@ function drawScene3Regions() {
 function drawScene3SnowSource() {
   const g = scene3.el.gSnow;
   const c = scene3LonLat(-119.1, 38.25);
-  const edge = scene3LonLat(-118.2, 39.4);
-  const r = Math.max(60, Math.hypot(edge[0] - c[0], edge[1] - c[1]));
-
-  let glow = g.select("circle.scene3-snow-glow");
-  if (glow.empty()) glow = g.append("circle").attr("class", "scene3-snow-glow");
-  glow
-    .attr("cx", c[0]).attr("cy", c[1]).attr("r", r)
-    .attr("fill", "url(#scene3-snow-glow)");
 
   let label = g.select("text.scene3-snow-label");
   if (label.empty()) label = g.append("text").attr("class", "scene3-snow-label");
   label
-    .attr("x", c[0]).attr("y", c[1] - r * 0.55)
+    .attr("x", c[0]).attr("y", c[1])
     .attr("text-anchor", "middle")
     .text("Sierra snowpack");
 }
@@ -1121,9 +1102,6 @@ function updateScene3RiverStress(visualScale) {
       return inBranch(b) ? 1 : 0.22;
     });
 
-  scene3.el.gSnow.select("circle.scene3-snow-glow")
-    .transition().duration(650)
-    .attr("opacity", 0.35 + 0.6 * Math.min(1, visualScale));
 }
 
 // ---- Particles ----
