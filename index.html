@@ -28,15 +28,35 @@
   </div>
 </div>
 
-<!-- ===== SCENE 1 SLOT — the cause (to build) ===== -->
-<section class="scene-slot" data-slot="1">
-  <div class="slot-card">
-    <div class="slot-tag">Scene 1 · the cause · TO BUILD · OWNER: ______</div>
-    <h2 class="slot-title">Why snow disappears</h2>
-    <p class="slot-spec">Warming near 0&deg;C flips winter precip from snow to rain and melts what's left sooner. Build: interactive "rising snow line" (temperature slider) — illustrative, optional <code>tas</code> series. Keep it short; it's the lens, not the payoff.</p>
-    <div class="slot-mount" id="viz-scene-1">render here &middot; &lt;div id="viz-scene-1"&gt;</div>
+<!-- SCENE 1: The cause — what falls as snow -->
+<div id="scene1">
+  <div id="scene1-inner">
+    <div id="scene1-text">
+      <div class="scene1-tag">Scene 1 · The Cause</div>
+      <h2 id="scene1-head">It&rsquo;s not how much falls.<br>It&rsquo;s <em>what</em> falls as snow.</h2>
+      <p id="scene1-desc">
+        The Sierra&rsquo;s cold season sits close to freezing, so a few degrees of warming flips a large share of winter precipitation from snow to rain &mdash; and warming bites hardest at the lower, milder elevations near the snow line.
+      </p>
+      <div id="scene1-stat"></div>
+      <div class="scene1-source">
+        CMIP6 <code>prsn</code>/<code>pr</code> &middot; 2 GFDL models (GFDL-CM4, GFDL-ESM4) &middot; cold season Nov&ndash;Mar. Regional Sierra-box mean (includes lower, warmer terrain), so this reads the phase <em>shift</em>, not high-country totals.
+      </div>
+    </div>
+    <div id="scene1-chart-wrap">
+      <div id="scene1-chart-title">What winter precipitation falls as</div>
+      <div id="scene1-chart-subtitle">Sierra Nevada &middot; cold season (Nov&ndash;Mar) &middot; snow vs rain</div>
+      <svg id="scene1-svg"></svg>
+      <div id="scene1-toggle-wrap" role="group" aria-label="View mode">
+        <button class="scene1-toggle-btn active" data-mode="share" type="button">Share of precip</button>
+        <button class="scene1-toggle-btn" data-mode="amount" type="button">Actual amount (mm/day)</button>
+      </div>
+      <div id="scene1-legend">
+        <span class="scene1-legend-item"><i style="background:var(--snow)"></i>Snow</span>
+        <span class="scene1-legend-item"><i style="background:var(--blue)"></i>Rain</span>
+      </div>
+    </div>
   </div>
-</section>
+</div>
 
 <!-- SCENE 2: A Century of Storage -->
 <div id="scene2">

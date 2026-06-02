@@ -880,6 +880,163 @@ async function initScene2() {
 
 initScene2();
 
+// ============================================================
+// Scene 1 — The cause: what winter precipitation falls as
+// CMIP6 prsn/pr cold-season (Nov–Mar) snow fraction over the Sierra box,
+// 2 GFDL models. Reads data/sierra_snowfall_seasons.csv (+ tas seasons for
+// the warming chips) with an embedded snapshot fallback so the pane renders
+// even before fetch (e.g. opened via file://). Namespaced scene1 / Scene1.
+// ============================================================
+
+const SCENE1_SEASONS = [
+  { key: "historical", label: "Historical", years: "1970–2000", precip: 20.446, snow: 5.060, warm: 0.0,  color: "var(--blue)"  },
+  { key: "ssp245",     label: "SSP2-4.5",   years: "2070–2100", precip: 21.375, snow: 3.364, warm: 2.39, color: "var(--green)" },
+  { key: "ssp585",     label: "SSP5-8.5",   years: "2070–2100", precip: 22.404, snow: 2.578, warm: 3.75, color: "var(--red)"   },
+];
+let scene1Mode = "share"; // "share" | "amount"
+
+async function loadScene1Data() {
+  try {
+    const base = document.baseURI;
+    const sf = await d3.csv(new URL("data/sierra_snowfall_seasons.csv", base).href, d3.autoType);
+    let tas = null;
+    try { tas = await d3.csv(new URL("data/sierra_tas_seasons.csv", base).href, d3.autoType); } catch (e) { /* optional */ }
+    if (sf && sf.length) {
+      SCENE1_SEASONS.forEach((s) => {
+        const r = sf.find((d) => d.scenario === s.key);
+        if (r) { s.precip = +r.cold_precip_mm_day; s.snow = +r.cold_snow_mm_day; }
+        if (tas) { const tr = tas.find((d) => d.scenario === s.key); if (tr) s.warm = +tr.delta_cold_vs_hist_c; }
+      });
+    }
+  } catch (e) {
+    // Embedded snapshot stands (e.g. file:// or missing CSV).
+    console.info("Scene 1: using embedded snowfall snapshot —", e.message);
+  }
+}
+
+function initScene1() {
+  const svg = d3.select("#scene1-svg");
+  const svgNode = svg.node();
+  if (!svgNode) return;
+
+  const frac   = (d) => (d.precip > 0 ? d.snow / d.precip : 0);
+  const rain   = (d) => Math.max(0, d.precip - d.snow);
+  const fmtPct = (f) => Math.round(f * 100) + "%";
+  const fmtMm  = (v) => v.toFixed(1);
+
+  const M1 = { top: 14, right: 66, bottom: 32, left: 142 };
+  const x1 = d3.scaleLinear();
+
+  let tip = document.getElementById("scene1-tip");
+  if (!tip) { tip = document.createElement("div"); tip.id = "scene1-tip"; document.body.appendChild(tip); }
+  const statBox = document.getElementById("scene1-stat");
+
+  function updateStat() {
+    if (!statBox) return;
+    const h  = SCENE1_SEASONS.find((s) => s.key === "historical");
+    const hi = SCENE1_SEASONS.find((s) => s.key === "ssp585");
+    if (scene1Mode === "share") {
+      statBox.innerHTML =
+        `Snow's share of cold-season precip:<br>` +
+        `<strong>${fmtPct(frac(h))} → ${fmtPct(frac(hi))}</strong> · historical → SSP5-8.5`;
+    } else {
+      statBox.innerHTML =
+        `Snowfall <strong>${fmtMm(h.snow)} → ${fmtMm(hi.snow)} mm/day</strong>, while total precip ` +
+        `holds near <strong>${fmtMm(h.precip)}–${fmtMm(hi.precip)}</strong>.<br>Same weather — less snow.`;
+    }
+  }
+
+  function setup1() {
+    svg.selectAll("*").remove();
+    const W = svgNode.getBoundingClientRect().width;
+    const H = svgNode.getBoundingClientRect().height;
+    const iW = W - M1.left - M1.right;
+    const iH = H - M1.top - M1.bottom;
+    x1.range([M1.left, M1.left + iW]);
+
+    const gAxis = svg.append("g").attr("class", "s1-axis").attr("transform", `translate(0,${M1.top + iH})`);
+    const gBars = svg.append("g").attr("class", "s1-bars");
+
+    const n = SCENE1_SEASONS.length;
+    const band = iH / n;
+    const barH = Math.min(46, band * 0.5);
+
+    const groups = gBars.selectAll("g.s1-bar").data(SCENE1_SEASONS, (d) => d.key).join((enter) => {
+      const g = enter.append("g").attr("class", "s1-bar").style("cursor", "pointer");
+      g.append("rect").attr("class", "s1-snow").attr("rx", 2).attr("fill", "var(--snow)");
+      g.append("rect").attr("class", "s1-rain").attr("rx", 2).attr("fill", "var(--blue)").attr("fill-opacity", 0.6);
+      g.append("text").attr("class", "s1-name").attr("text-anchor", "end").attr("font-family", "'IBM Plex Mono',monospace").attr("font-size", 12);
+      g.append("text").attr("class", "s1-year").attr("text-anchor", "end").attr("font-family", "'IBM Plex Mono',monospace").attr("font-size", 9.5).attr("fill", "var(--text-dim)");
+      g.append("text").attr("class", "s1-warm").attr("text-anchor", "end").attr("font-family", "'IBM Plex Mono',monospace").attr("font-size", 9.5).attr("fill", "var(--red)");
+      g.append("text").attr("class", "s1-pct").attr("font-family", "'Playfair Display',serif").attr("font-size", 17).attr("fill", "var(--snow)");
+      return g;
+    });
+
+    groups
+      .on("mousemove", (ev, d) => {
+        tip.style.opacity = 1;
+        tip.style.left = (ev.clientX + 14) + "px";
+        tip.style.top = (ev.clientY + 14) + "px";
+        tip.innerHTML =
+          `<div class="h">${d.label} · ${d.years}</div>` +
+          `<div class="row"><span>Snow share</span><strong>${fmtPct(frac(d))}</strong></div>` +
+          `<div class="row"><span>Snowfall</span><strong>${fmtMm(d.snow)} mm/day</strong></div>` +
+          `<div class="row"><span>Rain</span><strong>${fmtMm(rain(d))} mm/day</strong></div>` +
+          `<div class="row"><span>Total precip</span><strong>${fmtMm(d.precip)} mm/day</strong></div>` +
+          (d.warm > 0 ? `<div class="row"><span>Warming</span><strong>+${d.warm.toFixed(1)} °C</strong></div>` : ``);
+      })
+      .on("mouseleave", () => { tip.style.opacity = 0; });
+
+    setup1._layout = { band, barH, gAxis, groups };
+    redraw1(false);
+  }
+
+  function redraw1(animate) {
+    const L = setup1._layout;
+    if (!L) return;
+    const maxAmt = d3.max(SCENE1_SEASONS, (d) => d.precip) * 1.03;
+    x1.domain(scene1Mode === "share" ? [0, 100] : [0, maxAmt]);
+    const snowVal = (d) => (scene1Mode === "share" ? frac(d) * 100 : d.snow);
+    const totVal  = (d) => (scene1Mode === "share" ? 100 : d.precip);
+    const t = d3.transition().duration(animate ? 450 : 0);
+
+    const axis = d3.axisBottom(x1).ticks(5).tickSize(0).tickPadding(8)
+      .tickFormat(scene1Mode === "share" ? ((v) => v + "%") : ((v) => v));
+    L.gAxis.transition(t).call(axis)
+      .call((g) => g.select(".domain").attr("stroke", "rgba(255,255,255,0.1)"))
+      .call((g) => g.selectAll("text").attr("fill", "var(--text-dim)").attr("font-size", "10px").attr("font-family", "'IBM Plex Mono',monospace"));
+
+    L.groups.each(function (d, i) {
+      const g = d3.select(this);
+      const y = M1.top + i * L.band + (L.band - L.barH) / 2;
+      const mid = y + L.barH / 2;
+      const x0 = x1(0), xSnow = x1(snowVal(d)), xTot = x1(totVal(d));
+      g.select(".s1-snow").transition(t).attr("x", x0).attr("y", y).attr("height", L.barH).attr("width", Math.max(0, xSnow - x0));
+      g.select(".s1-rain").transition(t).attr("x", xSnow).attr("y", y).attr("height", L.barH).attr("width", Math.max(0, xTot - xSnow));
+      g.select(".s1-name").attr("x", M1.left - 12).attr("y", mid - 4).attr("fill", d.color).text(d.label);
+      g.select(".s1-year").attr("x", M1.left - 12).attr("y", mid + 9).text(d.years);
+      g.select(".s1-warm").attr("x", M1.left - 12).attr("y", mid + 21).text(d.warm > 0 ? `+${d.warm.toFixed(1)}°C cold` : "baseline");
+      g.select(".s1-pct").transition(t).attr("x", xTot + 8).attr("y", mid + 6).text(fmtPct(frac(d)));
+    });
+  }
+
+  document.querySelectorAll(".scene1-toggle-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      scene1Mode = btn.dataset.mode;
+      document.querySelectorAll(".scene1-toggle-btn").forEach((b) => b.classList.toggle("active", b === btn));
+      updateStat();
+      redraw1(true);
+    });
+  });
+
+  updateStat();
+  setup1();
+  const ro1 = new ResizeObserver(() => setup1());
+  ro1.observe(svgNode);
+}
+
+loadScene1Data().then(initScene1);
+
 /* ============================================================ */
 /* SCENE 4 · Zoom Out: The Sierra Water Network                 */
 /* All Scene 4 code is namespaced with scene4 / Scene4 and is   */
