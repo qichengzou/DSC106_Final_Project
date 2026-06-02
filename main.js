@@ -2257,3 +2257,172 @@ async function initScene6() {
     console.error("Scene 6: failed to load melt timing CSV:", err);
   }
 }
+
+
+// ============================================================
+// Scene 5 — The Consequence: where the summer water goes
+// Apr–Jul ("summer") snowmelt as a share of the historical summer mean,
+// decomposed (Shapley two-factor) into:
+//   kept     = still arrives in summer
+//   gone     = less total snowmelt (never banked as snow)
+//   mistimed = still melts, but too early to use in summer
+// Renders from an embedded snapshot (computed from sierra_snowmelt_profiles.csv);
+// a live CSV recompute overrides it when served over http (file:// keeps the
+// snapshot). Namespaced scene5 / SCENE5 so it cannot disturb other scenes.
+// ============================================================
+
+let SCENE5 = [
+  { key: "historical", title: "Historical",         years: "1970–2000", kept: 100,  gone: 0,    mist: 0    },
+  { key: "ssp245",     title: "Current Trajectory", years: "2070–2100", kept: 52.6, gone: 41.2, mist: 6.2  },
+  { key: "ssp585",     title: "High Emissions",     years: "2070–2100", kept: 23.4, gone: 44.4, mist: 32.2 },
+];
+
+const SCENE5_COL = { kept: "var(--blue)", gone: "var(--text-dim)", mist: "var(--demand)" };
+
+// Shapley two-factor split of summer (Apr–Jul) melt vs historical.
+// Summer = AnnualTotal x SummerShare; the loss decomposes into a volume term
+// ("gone") and a share/timing term ("mistimed"). kept + gone + mist = 100.
+function scene5Decompose(meanByScenario) {
+  const annual = (s) => d3.sum(meanByScenario[s]);
+  const share  = (s) => (meanByScenario[s][3] + meanByScenario[s][4] +
+                         meanByScenario[s][5] + meanByScenario[s][6]) / annual(s);
+  const summer = (s) => annual(s) * share(s);
+  const base = summer("historical");
+  if (!(base > 0)) return null;
+  const row = (key, title, years) => {
+    if (key === "historical") return { key, title, years, kept: 100, gone: 0, mist: 0 };
+    const dA = annual(key) - annual("historical");
+    const dS = share(key) - share("historical");
+    const gone = -(dA * (share("historical") + share(key)) / 2) / base * 100;
+    const mist = -(dS * (annual("historical") + annual(key)) / 2) / base * 100;
+    return { key, title, years, kept: (summer(key) / base) * 100, gone, mist };
+  };
+  return [
+    row("historical", "Historical", "1970–2000"),
+    row("ssp245", "Current Trajectory", "2070–2100"),
+    row("ssp585", "High Emissions", "2070–2100"),
+  ];
+}
+
+async function scene5LoadAndRecompute() {
+  if (window.location.protocol === "file:") return;   // keep the embedded snapshot
+  try {
+    const url = new URL("data/sierra_snowmelt_profiles.csv", document.baseURI).href;
+    const res = await fetch(url);
+    if (!res.ok) return;
+    const rows = d3.csvParse(await res.text(), (d) => ({
+      scenario: (d.scenario || "").trim(), month: +d.month, mean: +d.mean,
+    }));
+    const byScen = {};
+    rows.forEach((d) => {
+      if (!byScen[d.scenario]) byScen[d.scenario] = new Array(12).fill(0);
+      if (d.month >= 1 && d.month <= 12) byScen[d.scenario][d.month - 1] = d.mean;
+    });
+    if (byScen.historical && byScen.ssp245 && byScen.ssp585) {
+      const out = scene5Decompose(byScen);
+      if (out) { SCENE5 = out; drawScene5(); }
+    }
+  } catch (e) {
+    console.info("Scene 5: using embedded snapshot —", e.message);
+  }
+}
+
+function scene5Tooltip() {
+  let t = document.getElementById("scene5-tip");
+  if (!t) { t = document.createElement("div"); t.id = "scene5-tip"; document.body.appendChild(t); }
+  return t;
+}
+function scene5ShowTip(tip, ev, html) {
+  tip.innerHTML = html; tip.style.opacity = 1;
+  const r = tip.getBoundingClientRect();
+  let xx = ev.clientX + 14, yy = ev.clientY - r.height - 10;
+  if (xx + r.width > window.innerWidth - 8) xx = ev.clientX - r.width - 14;
+  if (yy < 8) yy = ev.clientY + 16;
+  tip.style.left = xx + "px"; tip.style.top = yy + "px";
+}
+
+function drawScene5() {
+  const el = document.getElementById("scene5-svg");
+  if (!el) return;
+  const w = el.clientWidth, h = +el.getAttribute("height") || 420;
+  if (!w) return;
+  const svg = d3.select(el);
+  svg.selectAll("*").remove();
+
+  const m = { t: 18, r: 12, b: 52, l: 34 };
+  const iw = w - m.l - m.r, ih = h - m.t - m.b;
+  const colW = Math.min(iw * 0.60, 400);
+  const calloutX = m.l + colW + Math.max(30, iw * 0.045);
+  const g = svg.append("g").attr("transform", `translate(${m.l},${m.t})`);
+
+  const x = d3.scaleBand().domain(SCENE5.map((d) => d.key)).range([0, colW]).padding(0.58);
+  const y = d3.scaleLinear().domain([0, 100]).range([ih, 0]);
+  const r1 = (v) => Math.round(v);
+  const tip = scene5Tooltip();
+
+  [25, 50, 75, 100].forEach((t) =>
+    g.append("line").attr("x1", 0).attr("x2", colW).attr("y1", y(t)).attr("y2", y(t)).attr("stroke", "var(--rule)"));
+  [[0, "0"], [100, "100%"]].forEach((p) =>
+    g.append("text").attr("x", -9).attr("y", y(p[0]) + 3).attr("text-anchor", "end")
+      .attr("font-family", "'IBM Plex Mono',monospace").attr("font-size", "10px").attr("fill", "var(--text-dim)").text(p[1]));
+
+  SCENE5.forEach((d) => {
+    const bx = x(d.key), bw = x.bandwidth();
+    const segs = [
+      { name: "Kept",     v: d.kept, y0: 0,               col: SCENE5_COL.kept },
+      { name: "Gone",     v: d.gone, y0: d.kept,           col: SCENE5_COL.gone },
+      { name: "Mistimed", v: d.mist, y0: d.kept + d.gone,  col: SCENE5_COL.mist },
+    ];
+    segs.forEach((s) => {
+      if (s.v <= 0) return;
+      g.append("rect").attr("x", bx).attr("y", y(s.y0 + s.v)).attr("width", bw)
+        .attr("height", y(s.y0) - y(s.y0 + s.v)).attr("rx", 2).attr("fill", s.col)
+        .attr("opacity", s.name === "Kept" ? 0.95 : 0.8).style("cursor", "pointer")
+        .on("mousemove", (ev) => scene5ShowTip(tip, ev,
+          `<div class="h">${d.title} · ${d.years}</div><div class="r"><span>${s.name}</span><b>${r1(s.v)}%</b></div>`))
+        .on("mouseleave", () => { tip.style.opacity = 0; });
+    });
+    if (d.kept > 14) {
+      g.append("text").attr("x", bx + bw / 2).attr("y", y(d.kept / 2)).attr("text-anchor", "middle")
+        .attr("font-family", "'Playfair Display',serif").attr("font-size", "20px").attr("font-weight", 700)
+        .attr("fill", "var(--snow)").attr("dy", "0.1em").text(r1(d.kept) + "%");
+      g.append("text").attr("x", bx + bw / 2).attr("y", y(d.kept / 2) + 16).attr("text-anchor", "middle")
+        .attr("font-family", "'IBM Plex Mono',monospace").attr("font-size", "9px").attr("fill", "var(--snow)")
+        .attr("opacity", 0.85).text("reaches summer");
+    }
+    g.append("text").attr("x", bx + bw / 2).attr("y", ih + 22).attr("text-anchor", "middle")
+      .attr("font-size", "12.5px").attr("font-weight", 500).attr("fill", "var(--text)").text(d.title);
+    g.append("text").attr("x", bx + bw / 2).attr("y", ih + 38).attr("text-anchor", "middle")
+      .attr("font-family", "'IBM Plex Mono',monospace").attr("font-size", "10.5px").attr("fill", "var(--text-dim)").text(d.years);
+  });
+
+  // numberless callouts on the High-Emissions column (no hover needed)
+  const hi = SCENE5[2], hx = x(hi.key) + x.bandwidth();
+  const callouts = [
+    { col: SCENE5_COL.mist, mid: hi.kept + hi.gone + hi.mist / 2, word: "MISTIMED", line: "melts too early to use" },
+    { col: SCENE5_COL.gone, mid: hi.kept + hi.gone / 2,           word: "GONE",     line: "fell as rain, not snow" },
+    { col: SCENE5_COL.kept, mid: hi.kept / 2,                     word: "KEPT",     line: "still reaches summer" },
+  ];
+  callouts.forEach((c) => {
+    const yc = y(c.mid);
+    g.append("line").attr("x1", hx + 2).attr("y1", yc).attr("x2", calloutX - 10).attr("y2", yc)
+      .attr("stroke", c.col).attr("stroke-width", 1).attr("opacity", 0.5);
+    g.append("circle").attr("cx", calloutX - 6).attr("cy", yc).attr("r", 3).attr("fill", c.col);
+    g.append("text").attr("x", calloutX + 4).attr("y", yc - 3).attr("font-family", "'IBM Plex Mono',monospace")
+      .attr("font-size", "12px").attr("font-weight", 500).attr("letter-spacing", ".06em").attr("fill", c.col).text(c.word);
+    g.append("text").attr("x", calloutX + 4).attr("y", yc + 12).attr("font-size", "11.5px").attr("fill", "var(--text-dim)").text(c.line);
+  });
+}
+
+function initScene5() {
+  if (!document.getElementById("scene5-svg")) return;
+  drawScene5();
+  scene5LoadAndRecompute();
+  if (typeof ResizeObserver !== "undefined") {
+    const ro = new ResizeObserver(() => drawScene5());
+    ro.observe(document.getElementById("scene5-svg"));
+  }
+  window.addEventListener("resize", drawScene5);
+}
+
+initScene5();
