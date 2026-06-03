@@ -1336,6 +1336,25 @@ body {
   padding-left: 0.8rem;
 }
 
+/* ===== Video walkthrough link ===== */
+.video-section {
+  min-height: auto;
+  padding: 8vh 1.5rem 0;
+  display: block;
+}
+.video-link {
+  display: block;
+  max-width: 680px;
+  margin: 0 auto;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--blue);
+  text-decoration: none;
+}
+.video-link:hover { color: var(--text); }
+
 /* ===== Data & methods (progressive disclosure) ===== */
 .methods-section {
   min-height: auto;
