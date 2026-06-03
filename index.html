@@ -22,8 +22,8 @@
 <!-- INTRO -->
 <div class="full-section">
   <div class="intro-inner">
-    <h1>The Peak Comes Early</h1>
-    <p>CMIP6 models show the Sierra Nevada's snowmelt arriving earlier in the year — and carrying far less water. Both shifts widen the gap between when the water comes and when California needs it most.</p>
+    <h1>California's biggest reservoir<br>isn't a lake. It's snow.</h1>
+    <p>Each winter the Sierra Nevada banks the state's water as snowpack, then releases it slowly through spring and summer — exactly when California runs dry. Climate change is breaking that timer.</p>
     <div class="scroll-cue">↓ scroll to explore</div>
   </div>
 </div>
@@ -48,7 +48,7 @@
       <svg id="scene1-svg"></svg>
       <div id="scene1-toggle-wrap" role="group" aria-label="View mode">
         <button class="scene1-toggle-btn active" data-mode="share" type="button">Share of precip</button>
-        <button class="scene1-toggle-btn" data-mode="amount" type="button">Actual amount (mm/day)</button>
+        <button class="scene1-toggle-btn" data-mode="amount" type="button">Total winter precip</button>
       </div>
       <div id="scene1-legend">
         <span class="scene1-legend-item"><i style="background:var(--snow)"></i>Snow</span>
@@ -63,19 +63,19 @@
   <div id="scene2-inner">
     <div id="scene2-text">
       <div class="scene2-tag">Scene 2 · Historical Record</div>
-      <h2 id="scene2-head">A Century of Storage</h2>
+      <h2 id="scene2-head">It&rsquo;s already happening:<br>the snowpack is shrinking</h2>
       <p id="scene2-desc">
-        April 1st snowpack — the traditional "peak storage" benchmark used by water managers — has been in decline across the Sierra Nevada since the mid-20th century. This is observed data, not a model projection. The trend is already here.
+        April 1st snowpack — the benchmark water managers watch for &ldquo;peak storage&rdquo; — has trended downward across the Sierra since the mid-20th century. In these climate-model simulations the decline is already underway through the historical period, not just a future risk.
       </p>
       <div id="scene2-stat"></div>
       <div class="scene2-source">
-        Source: CMIP6 ensemble mean (IPSL-CM6A-LR).
-        Historical experiment 1950–2014 + SSP2-4.5 2015–2023. April 1 SWE anomaly relative to 1981–2010 mean.
+        CMIP6 multi-model mean · historical simulation 1950–2014 + moderate future (SSP2-4.5) 2015–2023.
+        April 1 snowpack (snow water equivalent), shown as inches above or below the 1981–2010 average.
       </div>
     </div>
     <div id="scene2-chart-wrap">
       <div id="scene2-chart-title">Sierra Nevada · April 1 Snowpack (SWE)</div>
-      <div id="scene2-chart-subtitle">ANOMALY FROM 1981–2010 MEAN · INCHES</div>
+      <div id="scene2-chart-subtitle">INCHES ABOVE OR BELOW THE 1981–2010 AVERAGE</div>
       <svg id="scene2-svg"></svg>
       <div id="scene2-slider-wrap">
         <span class="scene2-slider-label">1950</span>
@@ -92,7 +92,7 @@
 
   <div id="sticky-chart">
     <div id="chart-title">Sierra Nevada snowmelt — when it arrives, and how much</div>
-    <div id="chart-subtitle">CMIP6 monthly snowmelt (snm) · Sierra Nevada · Oct–Sep</div>
+    <div id="chart-subtitle">Monthly snowmelt · Sierra Nevada · water year (Oct → Sep)</div>
     <div id="chart-load-error" role="alert" aria-live="polite"></div>
     <svg id="chart-svg"></svg>
     <div id="legend">
@@ -140,8 +140,8 @@
         <div class="step-tag">Step 3 of 5 · The shift</div>
         <div class="step-head">Warming pulls the peak <em>earlier</em></div>
         <div class="step-body">
-          Under the high-emissions SSP5-8.5 scenario (2070–2100), the melt peak slides from <strong>March to February</strong> — about a month earlier. Because each curve here is scaled to its own peak, you're seeing pure <strong>timing</strong>: the warm-future pulse is visibly shifted to the left.
-          <div class="callout">Peak month: March → February<br>(~1 month earlier)<br>Center-timing: 2.46 → 1.88 months</div>
+          Under a <strong>high-emissions future</strong> (SSP5-8.5, 2070–2100), the melt peak slides from <strong>March to February</strong> — about a month earlier. Both curves are scaled to their own peak here, so watch <strong>when</strong> the melt arrives, not how high it is. The real amounts come next.
+          <div class="callout">Peak month: March → February<br>(~1 month earlier)</div>
         </div>
       </div>
     </div>
@@ -151,7 +151,7 @@
         <div class="step-tag">Step 4 of 5 · The volume</div>
         <div class="step-head">And there's <em>far less</em> of it</div>
         <div class="step-body">
-          Timing isn't the whole story. Switch to absolute units and the warm-future melt pulse collapses: peak melt nearly halves, from about <strong>1.19 to 0.61 mm/day</strong>. The melt also concentrates into the deepest winter months, leaving even less for spring.
+          Timing isn't the whole story. Now switch to actual amounts and the warm-future melt pulse collapses: peak melt nearly halves, from about <strong>1.19 to 0.61 mm/day</strong>. The melt also concentrates into the deepest winter months, leaving even less for spring.
           <div class="callout">Peak melt: ~1.19 → ~0.61 mm/day<br>Nov–Mar share: 82% → 91%<br>Apr–Jul share: 16% → 9%</div>
         </div>
       </div>
@@ -221,7 +221,7 @@
         <div class="scene4-step-inner">
           <div class="scene4-step-tag">Step 6 · Mid-century · SSP2-4.5</div>
           <h2>Future warming changes the melt signal.</h2>
-          <p>Scaling the same network by the <strong>CMIP6-derived Sierra melt proxy</strong> under SSP2-4.5, the upstream signal weakens — the rivers thin even though the downstream demand does not.</p>
+          <p>Scaling the same network by the <strong>modeled Sierra snowmelt</strong> under a moderate future (SSP2-4.5), the upstream signal weakens — the rivers thin even though the downstream demand does not.</p>
         </div>
       </div>
 
@@ -229,7 +229,7 @@
         <div class="scene4-step-inner">
           <div class="scene4-step-tag">Step 7 · Mid-century · SSP5-8.5</div>
           <h2>Under higher emissions, the network remains but the signal weakens.</h2>
-          <p>Under SSP5-8.5 the downstream dependency network is unchanged — the same farms, cities, and lakes — but the upstream melt proxy that feeds it is markedly thinner.</p>
+          <p>Under a high-emissions future (SSP5-8.5) the downstream dependency network is unchanged — the same farms, cities, and lakes — but the upstream snowmelt that feeds it is markedly thinner.</p>
         </div>
       </div>
 
@@ -238,7 +238,7 @@
     <div class="scene4-viz-wrap">
       <div class="scene4-viz-head">
         <div class="scene4-viz-title">Zoom Out: The Sierra Water Network</div>
-        <div class="scene4-viz-sub">River thickness scaled by CMIP6-derived Sierra melt proxy · <span class="scene4-state-label"></span></div>
+        <div class="scene4-viz-sub">River thickness shows how much snowmelt feeds each river · <span class="scene4-state-label"></span></div>
       </div>
 
       <div class="scene4-controls">
@@ -277,13 +277,13 @@
   <div class="scene5-inner">
     <div class="scene5-text">
       <div class="scene5-tag">Scene 5 · The Consequence</div>
-      <h2 class="scene5-head">Less summer water &mdash; and more of it at the <em>wrong time</em></h2>
+      <h2 class="scene5-head">Less and less reaches summer &mdash; right when we <em>need it most</em></h2>
       <p class="scene5-desc">By the end of the century, far less of the Sierra&rsquo;s snowmelt reaches the <strong>summer</strong>, when California needs it &mdash; partly because it never falls as snow, and increasingly because it melts <strong>too early</strong> to use.</p>
       <div class="scene5-source">Apr&ndash;Jul snowmelt as a share of the 1970&ndash;2000 summer mean &middot; CMIP6, 2 GFDL models (futures 2070&ndash;2100). SSP2-4.5 &asymp; current-policies trajectory (~2.7&nbsp;&deg;C by 2100). &ldquo;Mistimed&rdquo; water still flows &mdash; it is recoverable with storage.</div>
     </div>
     <div class="scene5-chart-wrap">
       <div class="scene5-chart-title">Where the summer water goes</div>
-      <div class="scene5-chart-subtitle">Share of the historical summer supply &middot; by fate</div>
+      <div class="scene5-chart-subtitle">Share of the historical summer supply &middot; where it goes</div>
       <svg id="scene5-svg" height="420"></svg>
     </div>
   </div>
@@ -300,8 +300,8 @@
 <div id="scene-6">
 
   <div id="sticky-chart-6">
-    <div id="chart-title-6">Two futures for Sierra Nevada runoff</div>
-    <div id="chart-subtitle-6">CMIP6 monthly runoff index · % of historical peak · 2050–2075</div>
+    <div id="chart-title-6">Two futures for Sierra Nevada snowmelt</div>
+    <div id="chart-subtitle-6">Monthly snowmelt · % of the historical peak · 2050–2075</div>
     <svg id="chart-svg-6"></svg>
     <div id="legend-6">
       <div class="legend-item">
@@ -333,21 +333,54 @@
         Under <strong style="color:var(--green)">moderate emissions (SSP2-4.5)</strong>, the winter peak drops to ~90% of historical — the water system is stressed, but retains meaningful spring runoff.
         <br><br>
         Under <strong style="color:var(--red)">high emissions (SSP5-8.5)</strong>, the drop is steeper: ~80% of historical, with spring runoff collapsing faster. The divergence is greatest in <strong>March–May</strong> — exactly when reservoirs refill.
-        <div class="callout">Feb gap: ~10 index points<br>Apr gap: ~15 index points<br>Every point = less stored water</div>
+        <div class="callout">Feb gap: ~10 points<br>Mar gap: ~12 points (widest)<br>Every point = less stored water</div>
       </div>
     </div>
   </div>
 
 </div>
 
+<!-- ===== CLOSE · Find your water (personalization) ===== -->
+<section id="scene-personal">
+  <div class="personal-inner">
+    <div class="personal-tag">Before you go &middot; Make it yours</div>
+    <h2 class="personal-head">Where does <em>your</em> water come from?</h2>
+    <p class="personal-sub">Pick the place closest to you. The Sierra snowpack feeds all of these &mdash; and the shift you just watched reaches every one.</p>
+    <div class="personal-btns" role="group" aria-label="Choose a region">
+      <button class="personal-btn" data-region="valley" type="button">Central Valley farms</button>
+      <button class="personal-btn" data-region="bay" type="button">Bay Area</button>
+      <button class="personal-btn" data-region="socal" type="button">Southern California</button>
+      <button class="personal-btn" data-region="reno" type="button">Reno &middot; Tahoe</button>
+    </div>
+    <div class="personal-result" id="personal-result" aria-live="polite"></div>
+  </div>
+</section>
+
 <!-- OUTRO -->
 <div class="full-section">
   <div class="intro-inner">
     <h1 style="font-size: clamp(1.4rem,3vw,2rem); margin-bottom:1rem;">
-      Less Snowmelt, Arriving Sooner
+      Same snow, wrong schedule
     </h1>
-    <p>Under SSP5-8.5, the Sierra's melt pulse peaks about a month earlier and carries nearly half as much water. Both shifts deepen California's reliance on storage to carry winter melt across to peak summer demand.</p>
+    <p>The snow still falls — but it now melts before the system can use or bank it. Reservoirs have to keep room for floods, so an earlier, faster pulse partly can't be stored; it runs downstream and is lost. The fix isn't more snow — it's managing a schedule that no longer matches when we need the water.</p>
   </div>
+</div>
+
+<!-- ===== DATA & METHODS (progressive disclosure) ===== -->
+<div class="full-section methods-section">
+  <details class="methods">
+    <summary>Data &amp; methods</summary>
+    <div class="methods-body">
+      <p>Every chart uses <strong>CMIP6</strong> climate-model output from the Pangeo Google-Cloud archive, averaged over a Sierra Nevada box (lat 36&ndash;40&deg;N, lon 121.5&ndash;118.5&deg;W), area-weighted by latitude, and reduced to monthly climatologies.</p>
+      <ul>
+        <li><strong>Snow vs rain (Scene 1):</strong> snowfall (<code>prsn</code>) and total precipitation (<code>pr</code>), cold season Nov&ndash;Mar, 2 GFDL models.</li>
+        <li><strong>Snowpack (Scene 2):</strong> April&nbsp;1 snow water equivalent (<code>snw</code>), CMIP6 multi-model mean; historical simulation 1950&ndash;2014 + SSP2-4.5 2015&ndash;2023, in inches vs the 1981&ndash;2010 average. These are model simulations, not station observations.</li>
+        <li><strong>Snowmelt (Scenes 3 &amp; 5):</strong> surface snowmelt (<code>snm</code>), 2 GFDL models; historical 1970&ndash;2000 vs SSP5-8.5 2070&ndash;2100, on a water year (Oct&rarr;Sep).</li>
+        <li><strong>Network &amp; two futures (Scenes 4 &amp; 6):</strong> a modeled snowmelt index (5 models, 2050&ndash;2075); river widths are approximate, not measured river discharge.</li>
+      </ul>
+      <p><strong>Plain terms:</strong> &ldquo;snowmelt&rdquo; = modeled meltwater (<code>snm</code>); &ldquo;moderate future&rdquo; = SSP2-4.5; &ldquo;high-emissions future&rdquo; = SSP5-8.5; &ldquo;water year&rdquo; = Oct&nbsp;1&ndash;Sep&nbsp;30, the standard hydrology calendar. Summer demand is illustrative, not from CMIP6. The &ldquo;~30% of California's water&rdquo; figure reflects commonly cited state estimates.</p>
+    </div>
+  </details>
 </div>
 
 <div id="chart-tooltip" role="tooltip" aria-hidden="true"></div>

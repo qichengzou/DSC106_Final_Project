@@ -166,7 +166,7 @@ const xAxisTitle = root.append("text").attr("class","axis-title")
   .attr("text-anchor","middle")
   .attr("fill","var(--text-dim)").attr("font-size","10px")
   .attr("font-family","'IBM Plex Mono',monospace")
-  .text("Oct → Sep");
+  .text("Water year · Oct → Sep");
 
 const demandAreaPath = root.append("path").attr("class","demand-area").attr("opacity",0);
 const demandLinePath = root.append("path").attr("class","demand-line").attr("opacity",0);
@@ -1522,9 +1522,9 @@ function drawScene4Nodes() {
 function drawScene4Legend() {
   const items = [
     { swatch: `<span class="scene4-legend-swatch" style="width:26px;height:6px;border-radius:3px;background:var(--s4-river)"></span>`,
-      text: "Thick / bright river = stronger melt proxy" },
+      text: "Thick / bright river = stronger snowmelt" },
     { swatch: `<span class="scene4-legend-swatch" style="width:26px;height:2px;border-radius:2px;background:var(--s4-river);opacity:0.4"></span>`,
-      text: "Thin / faint river = weaker melt proxy" },
+      text: "Thin / faint river = weaker snowmelt" },
     { swatch: `<span class="scene4-legend-swatch" style="width:10px;height:10px;border-radius:50%;background:var(--s4-snow)"></span>`,
       text: "Moving dots = downstream dependency direction" },
     { swatch: `<span class="scene4-legend-swatch" style="width:26px;height:0;border-top:2px dashed var(--s4-owens)"></span>`,
@@ -1669,9 +1669,9 @@ function scene4ShowTooltip(event, d) {
     <div class="scene4-tt-row">Branch · <b>${scene4BranchLabel(d.branch)}</b></div>
     <div class="scene4-tt-row">Scenario · <b>${getScene4ScenarioLabel(scenario)}</b></div>
     <div class="scene4-tt-row">Month · <b>${getScene4MonthLabel(month)}</b></div>
-    <div class="scene4-tt-row">Melt proxy (snw_index) · <b>${snwIndex.toFixed(1)}</b></div>
+    <div class="scene4-tt-row">Snowmelt index · <b>${snwIndex.toFixed(1)}</b></div>
     <div class="scene4-tt-row">Models · <b>${modelCount}</b></div>
-    <div class="scene4-tt-note">melt proxy, not measured flow</div>`;
+    <div class="scene4-tt-note">modeled snowmelt, not measured river flow</div>`;
   tt.classList.add("visible");
   scene4PositionTooltip(event);
 }
@@ -1705,9 +1705,9 @@ function scene4BranchLabel(branch) {
 function scene4UpdateCaption() {
   const cap = scene4.el.caption;
   if (!cap) return;
-  const base = "River thickness is scaled by the project\u2019s CMIP6-derived Sierra melt proxy, " +
+  const base = "River thickness is scaled by the project\u2019s modeled Sierra snowmelt, " +
     "normalized so the historical peak melt month equals 100. It represents relative upstream " +
-    "snowmelt stress/timing, not exact river discharge or managed water deliveries.";
+    "snowmelt strength and timing, not exact river discharge or managed water deliveries.";
   if (!scene4.meltOk) {
     cap.classList.add("is-warning");
     cap.textContent = "CMIP6 melt profile data not loaded; using visual fallback values. " + base;
@@ -1722,7 +1722,7 @@ function scene4UpdateStateLabel() {
   if (!el) return;
   const snw = getScene4MeltValue(scene4.current.scenario, scene4.current.month);
   el.textContent =
-    `${getScene4ScenarioLabel(scene4.current.scenario)} · ${getScene4MonthLabel(scene4.current.month)} · proxy ${snw.toFixed(0)}`;
+    `${getScene4ScenarioLabel(scene4.current.scenario)} · ${getScene4MonthLabel(scene4.current.month)} · snowmelt ${snw.toFixed(0)}`;
 }
 
 // ---- Central update ----
@@ -1986,7 +1986,7 @@ async function initScene6() {
     if (series === "historical") {
       const pct = Math.round(Math.max(0, hist6[monthIdx]));
       return `
-        <div class="tt-eyebrow"><span class="tt-month">${month}</span> · SNOWMELT RUNOFF</div>
+        <div class="tt-eyebrow"><span class="tt-month">${month}</span> · SNOWMELT</div>
         ${mmLine}
         <div class="tt-secondary">${pct}% of annual maximum</div>
         <div class="tt-footer">
@@ -2426,3 +2426,47 @@ function initScene5() {
 }
 
 initScene5();
+
+// ============================================================
+// CLOSE — "Find your water" personalization (namespaced personal*).
+// Honest: it locates the reader inside the Sierra network shown in
+// Scene 4. No fabricated per-region numbers — it restates the
+// modeled, basin-wide shift (earlier + smaller) for the chosen place.
+// ============================================================
+const PERSONAL = {
+  valley: {
+    source: "the Sacramento and San Joaquin rivers, off the western Sierra",
+    line: "Central Valley farms draw the most water in mid-to-late summer — months after the snowmelt peak. As that peak slides earlier and shrinks, more of each year's water has to be captured and stored to reach the growing season.",
+  },
+  bay: {
+    source: "Sierra reservoirs fed by the western slope (e.g. Hetch Hetchy)",
+    line: "Bay Area supplies lean on Sierra snowmelt banked in upstream reservoirs. An earlier, smaller pulse leaves those reservoirs with less to hold over for the dry season.",
+  },
+  socal: {
+    source: "the Owens River and the Los Angeles Aqueduct, plus State Water Project deliveries",
+    line: "Southern California pulls Sierra snowmelt hundreds of kilometers south. When the pulse arrives earlier and carries less, the water reaching the aqueduct in summer falls with it.",
+  },
+  reno: {
+    source: "the Truckee and Carson rivers, off the eastern Sierra",
+    line: "Reno–Tahoe and the Lahontan Valley depend on the eastern slope. The same warming thins that snowmelt and moves it earlier — well ahead of peak summer demand.",
+  },
+};
+
+function initPersonal() {
+  const wrap = document.getElementById("personal-result");
+  const btns = document.querySelectorAll(".personal-btn");
+  if (!wrap || !btns.length) return;
+  function pick(region) {
+    const d = PERSONAL[region];
+    if (!d) return;
+    btns.forEach((b) => b.classList.toggle("active", b.dataset.region === region));
+    wrap.innerHTML =
+      `<div class="personal-source">Your water mostly begins as snow on <strong>${d.source}</strong>.</div>` +
+      `<div class="personal-line">${d.line}</div>` +
+      `<div class="personal-foot">By late century the snowmelt feeding it is modeled to peak about a month earlier — and, under a high-emissions future, to carry up to roughly half as much water.</div>`;
+    wrap.classList.add("shown");
+  }
+  btns.forEach((b) => b.addEventListener("click", () => pick(b.dataset.region)));
+  pick("valley"); // sensible default
+}
+initPersonal();

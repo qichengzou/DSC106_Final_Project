@@ -1243,3 +1243,139 @@ body {
 }
 
 #chart-tooltip[data-series="moderate"] { border-left-color: var(--green); }
+
+/* ===== CLOSE · "Find your water" personalization ===== */
+#scene-personal {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8vh 1.5rem;
+}
+.personal-inner {
+  max-width: 640px;
+  width: 100%;
+  text-align: center;
+}
+.personal-tag {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 1rem;
+}
+.personal-head {
+  font-family: 'Playfair Display', serif;
+  font-weight: 700;
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  line-height: 1.15;
+  margin: 0 0 0.75rem;
+  color: var(--text);
+}
+.personal-head em { font-style: italic; color: var(--blue); }
+.personal-sub {
+  font-size: 0.98rem;
+  line-height: 1.55;
+  color: var(--text-dim);
+  margin: 0 auto 1.6rem;
+  max-width: 30rem;
+}
+.personal-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+.personal-btn {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 0.45rem 0.9rem;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s, border-color 0.2s;
+}
+.personal-btn:hover { color: var(--text); background: rgba(255,255,255,0.08); }
+.personal-btn.active {
+  color: var(--text);
+  border-color: var(--blue);
+  background: var(--blue-dim);
+}
+.personal-result {
+  border-top: 1px solid var(--rule);
+  padding-top: 1.3rem;
+  opacity: 0;
+  transition: opacity 0.4s;
+  text-align: left;
+}
+.personal-result.shown { opacity: 1; }
+.personal-source {
+  font-size: 1.04rem;
+  line-height: 1.5;
+  color: var(--text);
+  margin-bottom: 0.7rem;
+}
+.personal-source strong { color: var(--blue); font-weight: 500; }
+.personal-line {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--text-dim);
+  margin-bottom: 0.8rem;
+}
+.personal-foot {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--text);
+  border-left: 2px solid var(--demand);
+  padding-left: 0.8rem;
+}
+
+/* ===== Data & methods (progressive disclosure) ===== */
+.methods-section {
+  min-height: auto;
+  padding: 4vh 1.5rem 12vh;
+  display: block;
+}
+.methods {
+  max-width: 680px;
+  margin: 0 auto;
+  border-top: 1px solid var(--rule);
+  padding-top: 1.2rem;
+}
+.methods summary {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  cursor: pointer;
+  list-style: none;
+}
+.methods summary::-webkit-details-marker { display: none; }
+.methods summary::before { content: "+ "; color: var(--blue); }
+.methods[open] summary::before { content: "– "; }
+.methods summary:hover { color: var(--text); }
+.methods-body {
+  margin-top: 1rem;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--text-dim);
+}
+.methods-body p { margin: 0 0 0.8rem; }
+.methods-body ul { margin: 0 0 0.8rem; padding-left: 1.1rem; }
+.methods-body li { margin-bottom: 0.4rem; }
+.methods-body strong { color: var(--text); font-weight: 500; }
+.methods-body code {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.92em;
+  color: var(--blue);
+  background: rgba(255,255,255,0.05);
+  padding: 0.05em 0.3em;
+  border-radius: 3px;
+}
