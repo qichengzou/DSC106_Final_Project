@@ -142,6 +142,17 @@ const line = d3.line()
 function innerW() { return W() - MARGIN.left - MARGIN.right; }
 function innerH() { return H() - MARGIN.top  - MARGIN.bottom; }
 
+// Shape-morph transition. Named "morph" so it runs concurrently with the
+// (default-named) opacity transitions in applyVisibility without either one
+// interrupting the other. Reusing the same name lets a new step's morph cleanly
+// take over from an in-flight one (smooth re-targeting mid-scroll).
+const TWEEN = 750;
+function tw(sel, animate) {
+  return animate
+    ? sel.transition("morph").duration(TWEEN).ease(d3.easeCubicInOut)
+    : sel;
+}
+
 // SVG elements
 const defs = svg.append("defs");
 defs.append("marker")
@@ -230,29 +241,16 @@ gapAnnotation.append("text").attr("class","gap-label")
 // Hover hit targets — appended last so they sit on top of paths & annotations.
 const tooltipTargets = root.append("g").attr("class","tooltip-targets");
 
-function placePeakLabel(textSel, px, py, iW) {
+function placePeakLabel(textSel, px, py, iW, animate) {
   const nearLeft = px < iW * 0.22;
   const nearRight = px > iW * 0.78;
 
-  if (nearLeft) {
-    textSel
-      .attr("x", px + 8)
-      .attr("y", py)
-      .attr("dy", "-10px")
-      .attr("text-anchor", "start");
-  } else if (nearRight) {
-    textSel
-      .attr("x", px - 8)
-      .attr("y", py)
-      .attr("dy", "-10px")
-      .attr("text-anchor", "end");
-  } else {
-    textSel
-      .attr("x", px)
-      .attr("y", py)
-      .attr("dy", "-10px")
-      .attr("text-anchor", "middle");
-  }
+  // Static attrs set immediately; positional attrs tween on step changes.
+  const dx = nearLeft ? 8 : nearRight ? -8 : 0;
+  textSel
+    .attr("dy", "-10px")
+    .attr("text-anchor", nearLeft ? "start" : nearRight ? "end" : "middle");
+  tw(textSel, animate).attr("x", px + dx).attr("y", py);
 }
 
 // ---- Tooltip (hover interaction) ----
@@ -370,8 +368,9 @@ function hideTooltip() {
 let histPeakPos = -1;
 let projPeakPos = -1;
 
-// Draw/update chart
-function draw() {
+// Draw/update chart. Pass animate=true on scroll-driven step changes so the
+// trendlines morph between states; resize/initial draws stay instant.
+function draw(animate = false) {
   const width = W();
   const height = H();
   if (width <= 0 || height <= 0) return;
@@ -403,10 +402,15 @@ function draw() {
   }
   y.range([iH, 0]);
 
-  gridG.selectAll("line").data(y.ticks(5)).join("line")
-    .attr("x1",0).attr("x2",iW)
-    .attr("y1",d=>y(d)).attr("y2",d=>y(d))
-    .attr("stroke","rgba(255,255,255,0.05)").attr("stroke-width",1);
+  gridG.selectAll("line").data(y.ticks(5)).join(
+    (enter) => enter.append("line")
+      .attr("x1",0).attr("x2",iW)
+      .attr("y1",d=>y(d)).attr("y2",d=>y(d))
+      .attr("stroke","rgba(255,255,255,0.05)").attr("stroke-width",1),
+    (update) => update,
+    (exit) => tw(exit, animate).attr("y1",0).attr("y2",0).style("opacity",0).remove(),
+  ).call((sel) => tw(sel, animate)
+    .attr("x2",iW).attr("y1",d=>y(d)).attr("y2",d=>y(d)));
 
   xAxisG.attr("transform",`translate(0,${iH})`)
     .call(d3.axisBottom(x).tickSize(0).tickPadding(10))
@@ -417,21 +421,23 @@ function draw() {
       .attr("font-family","'IBM Plex Mono',monospace"));
 
   const yTickFormat = normalize ? ((d) => `${d}`) : d3.format(".2f");
-  yAxisG.call(d3.axisLeft(y).ticks(5).tickFormat(yTickFormat).tickSize(0).tickPadding(8))
-    .call(g => g.select(".domain").remove())
-    .call(g => g.selectAll("text")
-      .attr("fill","var(--text-dim)")
-      .attr("font-size","10px")
-      .attr("font-family","'IBM Plex Mono',monospace"));
+  tw(yAxisG, animate).call(d3.axisLeft(y).ticks(5).tickFormat(yTickFormat).tickSize(0).tickPadding(8));
+  yAxisG.select(".domain").remove();
+  yAxisG.selectAll("text")
+    .attr("fill","var(--text-dim)")
+    .attr("font-size","10px")
+    .attr("font-family","'IBM Plex Mono',monospace");
 
   yAxisTitle.attr("x", -iH / 2).attr("y", -(MARGIN.left - 14))
     .text(normalize ? "% of each curve's own peak" : "snowmelt (mm/day)");
   xAxisTitle.attr("x", iW / 2).attr("y", iH + 34);
 
   if (normalize) {
-    demandAreaPath.attr("d", area(demandPts)).attr("fill","var(--demand-dim)");
-    demandLinePath.attr("d", line(demandPts)).attr("fill","none")
+    demandAreaPath.attr("fill","var(--demand-dim)");
+    demandLinePath.attr("fill","none")
       .attr("stroke","var(--demand)").attr("stroke-width",2).attr("stroke-dasharray","5 4");
+    tw(demandAreaPath, animate).attr("d", area(demandPts));
+    tw(demandLinePath, animate).attr("d", line(demandPts));
   } else {
     // Raw mm/day axis: demand (a 0-100 index) has no place here. Cancel any
     // in-flight fade and hide instantly so it cannot flash mis-scaled.
@@ -442,14 +448,18 @@ function draw() {
   }
 
   if (histPts) {
-    histAreaPath.attr("d", area(histPts)).attr("fill","var(--blue-dim)").attr("opacity",1);
-    histLinePath.attr("d", line(histPts)).attr("fill","none")
+    histAreaPath.attr("fill","var(--blue-dim)").attr("opacity",1);
+    histLinePath.attr("fill","none")
       .attr("stroke","var(--blue)").attr("stroke-width",2.5).attr("opacity",1);
+    tw(histAreaPath, animate).attr("d", area(histPts));
+    tw(histLinePath, animate).attr("d", line(histPts));
   }
   if (projPts) {
-    projAreaPath.attr("d", area(projPts)).attr("fill","var(--red-dim)");
-    projLinePath.attr("d", line(projPts)).attr("fill","none")
+    projAreaPath.attr("fill","var(--red-dim)");
+    projLinePath.attr("fill","none")
       .attr("stroke","var(--red)").attr("stroke-width",2.5);
+    tw(projAreaPath, animate).attr("d", area(projPts));
+    tw(projLinePath, animate).attr("d", line(projPts));
   }
 
   // Hover hit targets — built from water-year arrays, carrying calendar monthIdx
@@ -490,20 +500,20 @@ function draw() {
   const hpx = x(histPk.label), ppx = x(projPk.label);
   const histY = y(histPk.value), projY = y(projPk.value);
 
-  histPeak.select("line").attr("x1",hpx).attr("x2",hpx).attr("y1",histY).attr("y2",iH);
-  projPeak.select("line").attr("x1",ppx).attr("x2",ppx).attr("y1",projY).attr("y2",iH);
+  tw(histPeak.select("line"), animate).attr("x1",hpx).attr("x2",hpx).attr("y1",histY).attr("y2",iH);
+  tw(projPeak.select("line"), animate).attr("x1",ppx).attr("x2",ppx).attr("y1",projY).attr("y2",iH);
 
   // When the two peak months are adjacent, splay the labels outward so they don't
   // collide (projected label to the left of its peak, historical to the right).
   const peaksClose = Math.abs(hpx - ppx) < iW * 0.14;
   if (peaksClose) {
-    projPeak.select("text").attr("text-anchor","end")
-      .attr("x", ppx - 6).attr("y", projY).attr("dy","-10px");
-    histPeak.select("text").attr("text-anchor","start")
-      .attr("x", hpx + 6).attr("y", histY).attr("dy","-10px");
+    projPeak.select("text").attr("text-anchor","end").attr("dy","-10px");
+    histPeak.select("text").attr("text-anchor","start").attr("dy","-10px");
+    tw(projPeak.select("text"), animate).attr("x", ppx - 6).attr("y", projY);
+    tw(histPeak.select("text"), animate).attr("x", hpx + 6).attr("y", histY);
   } else {
-    placePeakLabel(histPeak.select("text"), hpx, histY, iW);
-    placePeakLabel(projPeak.select("text"), ppx, projY, iW);
+    placePeakLabel(histPeak.select("text"), hpx, histY, iW, animate);
+    placePeakLabel(projPeak.select("text"), ppx, projY, iW, animate);
   }
 
   // Peak-shift annotation: line from the projected (earlier) peak to the historical
@@ -512,12 +522,13 @@ function draw() {
   if (monthsShift !== 0) {
     const peakTop = Math.min(histY, projY);
     const shiftY = Math.max(2, peakTop - 46);
-    peakShift.select("line")
+    peakShift.select("text")
+      .text(`peak shifts ~${Math.abs(monthsShift)} month${Math.abs(monthsShift) > 1 ? "s" : ""} earlier`);
+    tw(peakShift.select("line"), animate)
       .attr("x1", ppx).attr("y1", shiftY)
       .attr("x2", hpx).attr("y2", shiftY);
-    peakShift.select("text")
-      .attr("x", (ppx + hpx) / 2).attr("y", shiftY - 5)
-      .text(`peak shifts ~${Math.abs(monthsShift)} month${Math.abs(monthsShift) > 1 ? "s" : ""} earlier`);
+    tw(peakShift.select("text"), animate)
+      .attr("x", (ppx + hpx) / 2).attr("y", shiftY - 5);
   }
 
   // Water-gap annotation (normalized only): a double-headed span at mid-height from
@@ -528,18 +539,18 @@ function draw() {
     const dpx = x(demandPk.label);
     const gapMonths = Math.abs(demandPk.pos - projPk.pos);
     const gapY = iH / 2;
-    gapAnnotation.select(".gap-line")
+    gapAnnotation.select(".gap-label").text(`~${gapMonths}-month water gap`);
+    tw(gapAnnotation.select(".gap-line"), animate)
       .attr("x1", ppx).attr("y1", gapY)
       .attr("x2", dpx).attr("y2", gapY);
-    gapAnnotation.select(".gap-label")
-      .attr("x", (ppx + dpx) / 2).attr("y", gapY - 6)
-      .text(`~${gapMonths}-month water gap`);
+    tw(gapAnnotation.select(".gap-label"), animate)
+      .attr("x", (ppx + dpx) / 2).attr("y", gapY - 6);
 
     const demandPkY = y(demandPk.value);
-    demandPeak.select("line")
+    tw(demandPeak.select("line"), animate)
       .attr("x1", dpx).attr("x2", dpx)
       .attr("y1", demandPkY).attr("y2", iH);
-    placePeakLabel(demandPeak.select("text"), dpx, demandPkY, iW);
+    placePeakLabel(demandPeak.select("text"), dpx, demandPkY, iW, animate);
   }
 }
 
@@ -597,7 +608,7 @@ function setStep(i) {
   dots.forEach((d, j) => d.classList.toggle("active", j === i));
   const cfg = STEP_CONFIG[i] || STEP_CONFIG[0];
   normalize = cfg.normalized; // apply the step's preferred mode
-  draw();
+  draw(true);
   applyVisibility(true);
 }
 
