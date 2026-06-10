@@ -1902,11 +1902,9 @@ async function initScene4RiverNetwork() {
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", () => {
     initScene4RiverNetwork();
-    initScene6();
   });
 } else {
   initScene4RiverNetwork();
-  initScene6();
 }
 
 
@@ -2493,13 +2491,8 @@ function initScene6Choice() {
   const svgEl = document.getElementById("s6c-svg");
   if (!svgEl) return;
 
-  // monthly mean snm (Jan..Dec) incl. the real ssp126 low path (GFDL-ESM4)
-  const SNAP = {
-    historical:[9.71790406905054e-6,1.3631530952723494e-5,1.3779567195808067e-5,7.455374112494346e-6,2.0902225885881023e-6,1.8996912896152357e-7,3.930969013161337e-9,4.306946278820114e-10,9.544255554993883e-8,8.060662482715983e-7,4.861387629035835e-6,6.708473487654459e-6],
-    ssp245:[6.958293997189594e-6,8.676032853710705e-6,7.336053886508264e-6,4.246403309418182e-6,8.161802773303834e-7,6.442507511787407e-8,5.5066124316755925e-11,1.763473807332155e-11,1.7987628640843663e-8,1.6242968646206106e-7,1.76415068057675e-6,3.8941479429531045e-6],
-    ssp585:[6.437511926356031e-6,7.066686866728418e-6,4.545920562256792e-6,1.8942077510679742e-6,3.8136093884329005e-7,7.547907768786503e-9,1.0417691001172982e-10,2.748340571135062e-12,1.7315143005126269e-9,7.013069829065029e-8,6.893780684298144e-7,4.2506069516806265e-6],
-    ssp126:[6.691017585886156e-6,9.019248628062457e-6,1.041083163080776e-5,5.716127442423868e-6,1.9974355416147187e-6,1.3700144127396122e-7,1.0331184702659324e-10,7.744394098694179e-11,9.33312944881125e-9,3.219309277648721e-7,2.552906816845693e-6,5.198507362926813e-6],
-  };
+  // CSV-only: data is read from data/sierra_snowmelt_choice_profiles.csv at load.
+  // No embedded snapshot — the page must be served over http (GitHub Pages or a local server).
   const FUTURES = [
     { key:"ssp585", label:"High",    note:"worst case" },
     { key:"ssp245", label:"Current", note:"today's path" },
@@ -2582,11 +2575,17 @@ function initScene6Choice() {
     });
   }
 
-  render(deriveMetrics(SNAP));
+  // compute the intro-card figures from the same data — no hand-typed numbers
+  function injectIntro(met){
+    const set=(id,v)=>{ const el=document.getElementById(id); if(el) el.textContent=v; };
+    if(met.ssp245) set("s6-cur",  Math.round(met.ssp245.summer)+"%");
+    if(met.ssp585) set("s6-high", Math.round(met.ssp585.summer)+"%");
+    if(met.ssp126) set("s6-low",  Math.round(met.ssp126.summer)+"%");
+  }
 
-  // live re-read over a server: real ssp126 (all metrics) replaces the snapshot
+  // CSV-only: render after loading the choice profiles (no embedded snapshot).
   (async function(){
-    if (location.protocol === "file:") return;
+    if (location.protocol === "file:") return;   // needs a server (GitHub Pages / local)
     for (const url of ["data/sierra_snowmelt_choice_profiles.csv","data/sierra_snowmelt_profiles.csv"]){
       try{
         const res = await fetch(url); if(!res.ok) continue;
@@ -2594,7 +2593,7 @@ function initScene6Choice() {
         const means={};
         rows.forEach(r=>{ const s=(r.scenario||"").trim(), mo=+r.month, v=+r.mean;
           if(!s||!mo) return; (means[s]=means[s]||new Array(12).fill(0))[mo-1]=v; });
-        if(means.historical && means.ssp245 && means.ssp585){ render(deriveMetrics(means)); return; }
+        if(means.historical && means.ssp245 && means.ssp585){ const met=deriveMetrics(means); render(met); injectIntro(met); return; }
       }catch(e){ /* try next */ }
     }
   })();
