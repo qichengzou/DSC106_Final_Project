@@ -93,7 +93,26 @@ async function loadSnowProfiles() {
     );
   }
 
+  injectScene3Stats(rows);   // compute the callout figures from the same CSV
   return { historical: hist, projected: proj };
+}
+
+// Compute Scene 3's narrative figures from the loaded rows and fill the matching
+// spans (class-based, since several appear more than once) — no hand-typed numbers.
+function injectScene3Stats(rows) {
+  const MN = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const meansOf = (scn) => { const a = new Array(12).fill(0); rows.forEach((r) => { if (r.scenario === scn && r.month >= 1 && r.month <= 12) a[r.month - 1] = r.mean; }); return a; };
+  const h = meansOf("historical"), p = meansOf(PROJECTED_SCENARIO);
+  if (!(d3.sum(h) > 0) || !(d3.sum(p) > 0)) return;
+  const peakMo = (a) => MN[a.indexOf(Math.max(...a))];
+  const peakMm = (a) => Math.max(...a) * SECONDS_PER_DAY;
+  const novMar = (a) => (a[10] + a[11] + a[0] + a[1] + a[2]) / d3.sum(a) * 100;
+  const aprJul = (a) => (a[3] + a[4] + a[5] + a[6]) / d3.sum(a) * 100;
+  const set = (cls, v) => document.querySelectorAll("." + cls).forEach((el) => { el.textContent = v; });
+  set("s3-hist-peak-mo", peakMo(h));            set("s3-proj-peak-mo", peakMo(p));
+  set("s3-hist-peak-mm", peakMm(h).toFixed(2)); set("s3-proj-peak-mm", peakMm(p).toFixed(2));
+  set("s3-hist-novmar", Math.round(novMar(h)) + "%"); set("s3-proj-novmar", Math.round(novMar(p)) + "%");
+  set("s3-hist-aprjul", Math.round(aprJul(h)) + "%"); set("s3-proj-aprjul", Math.round(aprJul(p)) + "%");
 }
 
 // Build a water-year plotting array (Oct..Sep) from 12 calendar records. The
@@ -899,10 +918,11 @@ initScene2();
 // even before fetch (e.g. opened via file://). Namespaced scene1 / Scene1.
 // ============================================================
 
+// CSV-only: precip/snow/warm are filled by loadScene1Data() from the CSVs (no hardcoded data).
 const SCENE1_SEASONS = [
-  { key: "historical", label: "Historical", years: "1970–2000", precip: 20.446, snow: 5.060, warm: 0.0,  color: "var(--blue)"  },
-  { key: "ssp245",     label: "SSP2-4.5",   years: "2070–2100", precip: 21.375, snow: 3.364, warm: 2.39, color: "var(--green)" },
-  { key: "ssp585",     label: "SSP5-8.5",   years: "2070–2100", precip: 22.404, snow: 2.578, warm: 3.75, color: "var(--red)"   },
+  { key: "historical", label: "Historical", years: "1970–2000", precip: null, snow: null, warm: null, color: "var(--blue)"  },
+  { key: "ssp245",     label: "SSP2-4.5",   years: "2070–2100", precip: null, snow: null, warm: null, color: "var(--green)" },
+  { key: "ssp585",     label: "SSP5-8.5",   years: "2070–2100", precip: null, snow: null, warm: null, color: "var(--red)"   },
 ];
 let scene1Mode = "share"; // "share" | "amount"
 
@@ -929,6 +949,7 @@ function initScene1() {
   const svg = d3.select("#scene1-svg");
   const svgNode = svg.node();
   if (!svgNode) return;
+  if (SCENE1_SEASONS.some((s) => s.precip == null || s.snow == null)) return;  // CSV-only: wait for data
 
   const frac   = (d) => (d.precip > 0 ? d.snow / d.precip : 0);
   const rain   = (d) => Math.max(0, d.precip - d.snow);
@@ -1909,363 +1930,10 @@ if (document.readyState === "loading") {
 
 
 // ============================================================
-// Scene 6 — Two Futures
+// Scene 6 — The Choice
+// The original proxy chart (sierra_melt_timing_profiles.csv) was removed.
+// The live Scene 6 is the snm "choice" dumbbell — see initScene6Choice() below.
 // ============================================================
-
-async function initScene6() {
-  const SCENE6_DATA_URL = new URL("data/sierra_melt_timing_profiles.csv", document.baseURI).href;
-  const SCENE6_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-
-  let hist6, mod6, proj6;
-  let meta6ByKey = {};
-
-  const svg6    = d3.select("#chart-svg-6");
-  if (svg6.empty()) return;
-
-  const W6      = () => svg6.node().getBoundingClientRect().width;
-  const H6      = () => svg6.node().getBoundingClientRect().height;
-  const MARGIN6 = { top: 28, right: 24, bottom: 40, left: 56 };
-
-  const x6 = d3.scalePoint().domain(SCENE6_MONTHS).padding(0.1);
-  const y6 = d3.scaleLinear().domain([0, 110]).nice();
-
-  const area6 = (data) => d3.area()
-    .x((d,i) => x6(SCENE6_MONTHS[i]))
-    .y0(y6(0))
-    .y1(d => y6(d))
-    .curve(d3.curveCatmullRom.alpha(0.5))(data);
-
-  const line6 = (data) => d3.line()
-    .x((d,i) => x6(SCENE6_MONTHS[i]))
-    .y(d => y6(d))
-    .curve(d3.curveCatmullRom.alpha(0.5))(data);
-
-  function innerW6() { return W6() - MARGIN6.left - MARGIN6.right; }
-  function innerH6() { return H6() - MARGIN6.top  - MARGIN6.bottom; }
-
-  const root6    = svg6.append("g").attr("transform", `translate(${MARGIN6.left},${MARGIN6.top})`);
-  const gridG6   = root6.append("g").attr("class","grid");
-  const xAxisG6  = root6.append("g").attr("class","x-axis");
-  const yAxisG6  = root6.append("g").attr("class","y-axis");
-
-  const histAreaPath6 = root6.append("path").attr("class","hist-area-6");
-  const histLinePath6 = root6.append("path").attr("class","hist-line-6");
-
-  const modAreaPath6 = root6.append("path").attr("class","mod-area-6");
-  const modLinePath6 = root6.append("path").attr("class","mod-line-6");
-
-  const projAreaPath6 = root6.append("path").attr("class","proj-area-6");
-  const projLinePath6 = root6.append("path").attr("class","proj-line-6");
-
-  const diffAnnotation6 = root6.append("g").attr("class","diff-annotation");
-  diffAnnotation6.append("line").attr("class","diff-line-mod")
-    .attr("stroke","var(--green)").attr("stroke-width",1).attr("stroke-dasharray","3 3");
-  diffAnnotation6.append("line").attr("class","diff-line-high")
-    .attr("stroke","var(--red)").attr("stroke-width",1).attr("stroke-dasharray","3 3");
-  diffAnnotation6.append("text").attr("class","diff-label")
-    .attr("font-family","'IBM Plex Mono',monospace")
-    .attr("font-size","10px")
-    .attr("fill","var(--text-dim)")
-    .attr("text-anchor","middle")
-    .attr("dy","0.35em")
-    .text("~10 pt gap at peak");
-
-  const tooltipTargets6 = root6.append("g").attr("class","tooltip-targets");
-
-  const MONTH_FULL6 = ["JANUARY","FEBRUARY","MARCH","APRIL","MAY","JUNE",
-    "JULY","AUGUST","SEPTEMBER","OCTOBER","NOVEMBER","DECEMBER"];
-  const DAYS_IN_MONTH6 = [31,28,31,30,31,30,31,31,30,31,30,31];
-
-  function fluxToMm6(flux, monthIdx) {
-    return flux * DAYS_IN_MONTH6[monthIdx] * 86400;
-  }
-
-  function tooltipHtml6(series, monthIdx) {
-    const month = MONTH_FULL6[monthIdx];
-    const metaKey = series === "historical" ? "historical"
-      : series === "moderate" ? "ssp245"
-      : "ssp585";
-    const meta = meta6ByKey[`${metaKey}-${monthIdx + 1}`] || null;
-    const mm = meta ? Math.max(0, Math.round(fluxToMm6(meta.mean_kgm2, monthIdx))) : null;
-    const mmLine = mm !== null ? `<div class="tt-primary">${mm} mm</div>` : "";
-    const count = meta
-      ? (meta.model_count === 1 ? "1 model" : `${meta.model_count}-model ensemble mean`)
-      : "";
-
-    if (series === "historical") {
-      const pct = Math.round(Math.max(0, hist6[monthIdx]));
-      return `
-        <div class="tt-eyebrow"><span class="tt-month">${month}</span> · SNOWMELT</div>
-        ${mmLine}
-        <div class="tt-secondary">${pct}% of annual maximum</div>
-        <div class="tt-footer">
-          <div class="tt-footer-line">Historical · 1970–2000</div>
-          <div class="tt-footer-line">${count}</div>
-        </div>`;
-    }
-    if (series === "moderate") {
-      const pct = Math.round(Math.max(0, mod6[monthIdx]));
-      return `
-        <div class="tt-eyebrow"><span class="tt-month">${month}</span> · PROJECTED · SSP2-4.5</div>
-        ${mmLine}
-        <div class="tt-secondary">${pct}% of historical maximum</div>
-        <div class="tt-footer">
-          <div class="tt-footer-line">Moderate emissions · 2050–2075</div>
-          <div class="tt-footer-line">${count}</div>
-        </div>`;
-    }
-    const pct = Math.round(Math.max(0, proj6[monthIdx]));
-    return `
-      <div class="tt-eyebrow"><span class="tt-month">${month}</span> · PROJECTED · SSP5-8.5</div>
-      ${mmLine}
-      <div class="tt-secondary">${pct}% of historical maximum</div>
-      <div class="tt-footer">
-        <div class="tt-footer-line">High emissions · 2050–2075</div>
-        <div class="tt-footer-line">${count}</div>
-      </div>`;
-  }
-
-  function isSeriesVisible6(series) {
-    const classMap = {
-      historical: "hist-line-6",
-      moderate:   "mod-line-6",
-      projected:  "proj-line-6",
-    };
-    const cls = classMap[series];
-    if (!cls) return false;
-    const path = svg6.select(`.${cls}`);
-    if (path.empty()) return false;
-    return +path.attr("opacity") > 0.1;
-  }
-
-  const tt6 = document.getElementById("chart-tooltip");
-
-  function showTooltip6(event, series, monthIdx) {
-    if (!tt6) return;
-    tt6.innerHTML = tooltipHtml6(series, monthIdx);
-    tt6.setAttribute("data-series", series);
-    tt6.setAttribute("aria-hidden", "false");
-    tt6.classList.add("visible");
-    positionTooltip6(event);
-  }
-
-  function positionTooltip6(event) {
-    if (!tt6) return;
-    const rect = tt6.getBoundingClientRect();
-    const pad = 12;
-    let x = event.clientX + pad;
-    let y = event.clientY - rect.height - pad;
-    if (x + rect.width > window.innerWidth - 8) x = event.clientX - rect.width - pad;
-    if (y < 8) y = event.clientY + pad;
-    tt6.style.left = `${x}px`;
-    tt6.style.top = `${y}px`;
-  }
-
-  function hideTooltip6() {
-    if (!tt6) return;
-    tt6.classList.remove("visible");
-    tt6.setAttribute("aria-hidden", "true");
-  }
-
-  function draw6() {
-    const width = W6();
-    const height = H6();
-    if (width <= 0 || height <= 0) return;
-
-    svg6.attr("width", width).attr("height", height);
-
-    const iW = innerW6();
-    const iH = innerH6();
-    if (iW <= 0 || iH <= 0) return;
-
-    x6.range([0, iW]);
-    y6.range([iH, 0]);
-
-    gridG6.selectAll("line").data(y6.ticks(5)).join("line")
-      .attr("x1",0).attr("x2",iW)
-      .attr("y1",d=>y6(d)).attr("y2",d=>y6(d))
-      .attr("stroke","rgba(255,255,255,0.05)").attr("stroke-width",1);
-
-    xAxisG6.attr("transform",`translate(0,${iH})`)
-      .call(d3.axisBottom(x6).tickSize(0).tickPadding(10))
-      .call(g => g.select(".domain").attr("stroke","rgba(255,255,255,0.1)"))
-      .call(g => g.selectAll("text")
-        .attr("fill","var(--text-dim)")
-        .attr("font-size","11px")
-        .attr("font-family","'IBM Plex Mono',monospace"));
-
-    yAxisG6.call(d3.axisLeft(y6).ticks(5).tickFormat(d=>d+"%").tickSize(0).tickPadding(8))
-      .call(g => g.select(".domain").remove())
-      .call(g => g.selectAll("text")
-        .attr("fill","var(--text-dim)")
-        .attr("font-size","10px")
-        .attr("font-family","'IBM Plex Mono',monospace"));
-
-    if (!hist6) return;
-
-    histAreaPath6
-      .attr("d", area6(hist6))
-      .attr("fill","var(--blue-dim)")
-      .attr("opacity", 1);
-    histLinePath6
-      .attr("d", line6(hist6))
-      .attr("fill","none")
-      .attr("stroke","var(--blue)")
-      .attr("stroke-width",2.5)
-      .attr("opacity", 1);
-
-    if (mod6) {
-      modAreaPath6
-        .attr("d", area6(mod6))
-        .attr("fill","var(--green-dim)")
-        .attr("opacity", 1);
-      modLinePath6
-        .attr("d", line6(mod6))
-        .attr("fill","none")
-        .attr("stroke","var(--green)")
-        .attr("stroke-width",2.5)
-        .attr("opacity", 1);
-    }
-
-    if (proj6) {
-      projAreaPath6
-        .attr("d", area6(proj6))
-        .attr("fill","var(--red-dim)")
-        .attr("opacity", 1);
-      projLinePath6
-        .attr("d", line6(proj6))
-        .attr("fill","none")
-        .attr("stroke","var(--red)")
-        .attr("stroke-width",2.5)
-        .attr("opacity", 1);
-    }
-
-    if (mod6 && proj6) {
-      const peakIdx = hist6.indexOf(Math.max(...hist6));
-      const px = x6(SCENE6_MONTHS[peakIdx]);
-      const modY = y6(mod6[peakIdx]);
-      const projY = y6(proj6[peakIdx]);
-
-      diffAnnotation6.select(".diff-line-mod")
-        .attr("x1", px - 18).attr("x2", px + 18)
-        .attr("y1", modY).attr("y2", modY);
-      diffAnnotation6.select(".diff-line-high")
-        .attr("x1", px - 18).attr("x2", px + 18)
-        .attr("y1", projY).attr("y2", projY);
-      diffAnnotation6.select(".diff-label")
-        .attr("x", px + 38)
-        .attr("y", (modY + projY) / 2);
-    }
-
-    const targetData6 = [];
-    if (proj6) proj6.forEach((v, i) =>
-      targetData6.push({ series: "projected", month: i, cx: x6(SCENE6_MONTHS[i]), cy: y6(v) }));
-    if (mod6) mod6.forEach((v, i) =>
-      targetData6.push({ series: "moderate", month: i, cx: x6(SCENE6_MONTHS[i]), cy: y6(v) }));
-    if (hist6) hist6.forEach((v, i) =>
-      targetData6.push({ series: "historical", month: i, cx: x6(SCENE6_MONTHS[i]), cy: y6(v) }));
-
-    tooltipTargets6.selectAll("circle")
-      .data(targetData6)
-      .join("circle")
-      .attr("cx", (d) => d.cx)
-      .attr("cy", (d) => d.cy)
-      .attr("r", 14)
-      .attr("fill", "transparent")
-      .attr("stroke", "none")
-      .on("mouseenter", (event, d) => {
-        if (!isSeriesVisible6(d.series)) return;
-        showTooltip6(event, d.series, d.month);
-      })
-      .on("mousemove", (event) => positionTooltip6(event))
-      .on("mouseleave", hideTooltip6);
-  }
-
-  draw6();
-
-  window.addEventListener("resize", draw6);
-
-  if (typeof ResizeObserver !== "undefined") {
-    const ro6 = new ResizeObserver(() => draw6());
-    ro6.observe(svg6.node());
-  }
-
-  const scene6El = document.getElementById("scene-6");
-  if (scene6El) {
-    new IntersectionObserver((entries) => {
-      entries.forEach(e => { if (e.isIntersecting) draw6(); });
-    }, { threshold: 0.1 }).observe(scene6El);
-  }
-
-  document.querySelectorAll("#scene-6 .toggle-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const scenario = btn.dataset.scenario;
-
-      document.querySelectorAll("#scene-6 .toggle-btn").forEach(b => {
-        b.classList.remove("active-both","active-mod","active-high");
-      });
-
-      if (scenario === "both") {
-        btn.classList.add("active-both");
-        modAreaPath6.transition().duration(400).attr("opacity",1);
-        modLinePath6.transition().duration(400).attr("opacity",1);
-        projAreaPath6.transition().duration(400).attr("opacity",1);
-        projLinePath6.transition().duration(400).attr("opacity",1);
-      } else if (scenario === "moderate") {
-        btn.classList.add("active-mod");
-        modAreaPath6.transition().duration(400).attr("opacity",1);
-        modLinePath6.transition().duration(400).attr("opacity",1);
-        projAreaPath6.transition().duration(400).attr("opacity",0.12);
-        projLinePath6.transition().duration(400).attr("opacity",0.2);
-      } else if (scenario === "high") {
-        btn.classList.add("active-high");
-        modAreaPath6.transition().duration(400).attr("opacity",0.12);
-        modLinePath6.transition().duration(400).attr("opacity",0.2);
-        projAreaPath6.transition().duration(400).attr("opacity",1);
-        projLinePath6.transition().duration(400).attr("opacity",1);
-      }
-    });
-  });
-
-  if (window.location.protocol === "file:") return;
-
-  try {
-    const response = await fetch(SCENE6_DATA_URL);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-    const rows = d3.csvParse(await response.text(), (d) => ({
-      scenario: (d.scenario || "").trim(),
-      month: +d.month,
-      snw_index: +d.snw_index,
-      mean_kgm2: +d.mean,
-      model_count: +d.model_count,
-    }));
-
-    meta6ByKey = {};
-    rows.forEach((d) => {
-      meta6ByKey[`${d.scenario}-${d.month}`] = {
-        mean_kgm2: d.mean_kgm2,
-        model_count: d.model_count,
-      };
-    });
-
-    function profileFromCsv6(scenario) {
-      const values = rows
-        .filter((d) => d.scenario === scenario)
-        .sort((a, b) => d3.ascending(a.month, b.month))
-        .map((d) => Math.max(0, d.snw_index));
-      return values.length === 12 ? values : null;
-    }
-
-    hist6 = profileFromCsv6("historical");
-    mod6  = profileFromCsv6("ssp245");
-    proj6 = profileFromCsv6("ssp585");
-
-    draw6();
-  } catch (err) {
-    console.error("Scene 6: failed to load melt timing CSV:", err);
-  }
-}
 
 
 // ============================================================
@@ -2280,11 +1948,8 @@ async function initScene6() {
 // snapshot). Namespaced scene5 / SCENE5 so it cannot disturb other scenes.
 // ============================================================
 
-let SCENE5 = [
-  { key: "historical", title: "Historical",         years: "1970–2000", kept: 100,  gone: 0,    mist: 0    },
-  { key: "ssp245",     title: "Current Trajectory", years: "2070–2100", kept: 52.6, gone: 41.2, mist: 6.2  },
-  { key: "ssp585",     title: "High Emissions",     years: "2070–2100", kept: 23.4, gone: 44.4, mist: 32.2 },
-];
+// CSV-only: filled by scene5LoadAndRecompute() from sierra_snowmelt_profiles.csv (no hardcoded snapshot).
+let SCENE5 = [];
 
 const SCENE5_COL = { kept: "var(--blue)", gone: "var(--text-dim)", mist: "var(--demand)" };
 
@@ -2351,6 +2016,7 @@ function scene5ShowTip(tip, ev, html) {
 }
 
 function drawScene5() {
+  if (SCENE5.length < 3) return;   // nothing to draw until the CSV loads
   const el = document.getElementById("scene5-svg");
   if (!el) return;
   const w = el.clientWidth, h = +el.getAttribute("height") || 420;
