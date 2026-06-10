@@ -2481,3 +2481,124 @@ function initPersonal() {
   pick("valley"); // sensible default
 }
 initPersonal();
+
+
+// ============================================================
+// Scene 6 — The Choice  (dumbbell on the snm choice profiles incl. SSP1-2.6 "low")
+// Reads data/sierra_snowmelt_choice_profiles.csv (fallback: sierra_snowmelt_profiles.csv);
+// an embedded snapshot keeps it rendering offline. Fully self-contained — every name
+// is local to the function, so it can't collide with anything above.
+// ============================================================
+function initScene6Choice() {
+  const svgEl = document.getElementById("s6c-svg");
+  if (!svgEl) return;
+
+  // monthly mean snm (Jan..Dec) incl. the real ssp126 low path (GFDL-ESM4)
+  const SNAP = {
+    historical:[9.71790406905054e-6,1.3631530952723494e-5,1.3779567195808067e-5,7.455374112494346e-6,2.0902225885881023e-6,1.8996912896152357e-7,3.930969013161337e-9,4.306946278820114e-10,9.544255554993883e-8,8.060662482715983e-7,4.861387629035835e-6,6.708473487654459e-6],
+    ssp245:[6.958293997189594e-6,8.676032853710705e-6,7.336053886508264e-6,4.246403309418182e-6,8.161802773303834e-7,6.442507511787407e-8,5.5066124316755925e-11,1.763473807332155e-11,1.7987628640843663e-8,1.6242968646206106e-7,1.76415068057675e-6,3.8941479429531045e-6],
+    ssp585:[6.437511926356031e-6,7.066686866728418e-6,4.545920562256792e-6,1.8942077510679742e-6,3.8136093884329005e-7,7.547907768786503e-9,1.0417691001172982e-10,2.748340571135062e-12,1.7315143005126269e-9,7.013069829065029e-8,6.893780684298144e-7,4.2506069516806265e-6],
+    ssp126:[6.691017585886156e-6,9.019248628062457e-6,1.041083163080776e-5,5.716127442423868e-6,1.9974355416147187e-6,1.3700144127396122e-7,1.0331184702659324e-10,7.744394098694179e-11,9.33312944881125e-9,3.219309277648721e-7,2.552906816845693e-6,5.198507362926813e-6],
+  };
+  const FUTURES = [
+    { key:"ssp585", label:"High",    note:"worst case" },
+    { key:"ssp245", label:"Current", note:"today's path" },
+    { key:"ssp126", label:"Low",     note:"aggressive cuts" },
+  ];
+  const COLOR = { ssp585:"#e05a4a", ssp245:"#e8c14a", ssp126:"#5bc99a" };
+  const METRICS = [
+    { key:"summer", name:"Summer supply", sub:"Apr–Jul", hero:true },
+    { key:"annual", name:"Annual volume", sub:"whole year" },
+    { key:"peak",   name:"Winter peak",   sub:"melt pulse" },
+  ];
+
+  function deriveMetrics(means) {
+    const clip = v => Math.max(0, v);
+    const summer = s => [3,4,5,6].reduce((a,i)=>a+clip(means[s][i]),0);   // Apr–Jul
+    const annual = s => means[s].reduce((a,v)=>a+clip(v),0);
+    const peak   = s => Math.max(...means[s].map(clip));
+    const Hk="historical", sB=summer(Hk), aB=annual(Hk), pB=peak(Hk);
+    const out={};
+    Object.keys(means).forEach(s=>{ out[s]={ summer:summer(s)/sB*100, annual:annual(s)/aB*100, peak:peak(s)/pB*100 }; });
+    return out;
+  }
+
+  const VW=880, MG={top:42,right:132,bottom:54,left:150};
+  const iw=VW-MG.left-MG.right;
+  const svg=d3.select("#s6c-svg");
+  const xS=d3.scaleLinear().domain([0,100]).range([0,iw]);
+  const rowY=[54,148,226], BOT=250;
+  let lastMet=null;
+
+  function render(met) {
+    lastMet=met;
+    svg.selectAll("*").remove();
+    const defs=svg.append("defs");
+    const root=svg.append("g").attr("transform",`translate(${MG.left},${MG.top})`);
+
+    [0,25,50,75,100].forEach(t=>{
+      root.append("line").attr("x1",xS(t)).attr("x2",xS(t)).attr("y1",-8).attr("y2",BOT).attr("stroke","var(--rule)");
+      root.append("text").attr("x",xS(t)).attr("y",BOT+20).attr("text-anchor","middle").attr("class","s6c-ax").text(t+"%");
+    });
+    root.append("text").attr("x",xS(50)).attr("y",BOT+40).attr("text-anchor","middle").attr("class","s6c-ax").attr("fill","var(--text-dim)").attr("opacity",.7).text("share of the 1970–2000 normal");
+
+    root.append("line").attr("x1",xS(100)).attr("x2",xS(100)).attr("y1",-8).attr("y2",BOT)
+      .attr("stroke","var(--blue)").attr("stroke-width",1.5).attr("stroke-dasharray","2 3").attr("opacity",.7);
+    root.append("text").attr("x",xS(100)).attr("y",-16).attr("text-anchor","middle").attr("class","s6c-scen").attr("fill","var(--blue)").text("the old normal (100%)");
+
+    METRICS.forEach((metric,i)=>{
+      const y=rowY[i], big=metric.hero;
+      const pts=FUTURES.filter(f=>met[f.key]&&met[f.key][metric.key]!=null)
+        .map(f=>({ ...f, v: met[f.key][metric.key] })).sort((a,b)=>a.v-b.v);
+      const lo=pts[0].v, hi=pts[pts.length-1].v;
+
+      root.append("text").attr("x",-16).attr("y",y-1).attr("text-anchor","end").attr("class","s6c-mname")
+        .attr("font-size","13px").attr("font-weight",400).attr("fill","var(--text)").text(metric.name);
+      root.append("text").attr("x",-16).attr("y",y+15).attr("text-anchor","end").attr("class","s6c-ax").attr("fill","var(--text-dim)").attr("opacity",.7).text(metric.sub);
+
+      const gid=`s6cgrad${i}`;
+      const grad=defs.append("linearGradient").attr("id",gid).attr("gradientUnits","userSpaceOnUse")
+        .attr("x1",xS(lo)).attr("y1",y).attr("x2",xS(hi)).attr("y2",y);
+      pts.forEach(p=>{ const off=hi===lo?0:(p.v-lo)/(hi-lo); grad.append("stop").attr("offset",`${off*100}%`).attr("stop-color",COLOR[p.key]); });
+      root.append("line").attr("x1",xS(lo)).attr("x2",xS(hi)).attr("y1",y).attr("y2",y)
+        .attr("stroke",`url(#${gid})`).attr("stroke-width",big?7:4).attr("stroke-linecap","round").attr("opacity",big?1:.85);
+
+      pts.forEach(p=>{
+        root.append("circle").attr("cx",xS(p.v)).attr("cy",y).attr("r",big?7.5:5.5).attr("fill",COLOR[p.key]).attr("stroke","var(--bg)").attr("stroke-width",1);
+        root.append("text").attr("x",xS(p.v)).attr("y",y-14).attr("text-anchor","middle").attr("class","s6c-val").attr("font-size",big?"13px":"11.5px").attr("fill",COLOR[p.key]).text(Math.round(p.v)+"%");
+        if(big){
+          root.append("text").attr("x",xS(p.v)).attr("y",y+21).attr("text-anchor","middle").attr("class","s6c-scen").attr("fill",COLOR[p.key]).text(p.label);
+          root.append("text").attr("x",xS(p.v)).attr("y",y+33).attr("text-anchor","middle").attr("class","s6c-scen").attr("fill","var(--text-dim)").attr("font-size","9px").text(p.note);
+        }
+      });
+
+      if(big){
+        const low = (met.ssp126 && met.ssp126.summer != null) ? Math.round(met.ssp126.summer) : null;
+        const msg = low != null
+          ? `With aggressive mitigation, we keep ~${low}% of historical summer supply`
+          : `Today's path keeps about half of historical summer supply`;
+        root.append("text").attr("x",xS(lo)).attr("y",y+50).attr("text-anchor","start").attr("class","s6c-scen").attr("font-size","12px").attr("fill","#5bc99a").text(msg);
+      }
+    });
+  }
+
+  render(deriveMetrics(SNAP));
+
+  // live re-read over a server: real ssp126 (all metrics) replaces the snapshot
+  (async function(){
+    if (location.protocol === "file:") return;
+    for (const url of ["data/sierra_snowmelt_choice_profiles.csv","data/sierra_snowmelt_profiles.csv"]){
+      try{
+        const res = await fetch(url); if(!res.ok) continue;
+        const rows = d3.csvParse(await res.text());
+        const means={};
+        rows.forEach(r=>{ const s=(r.scenario||"").trim(), mo=+r.month, v=+r.mean;
+          if(!s||!mo) return; (means[s]=means[s]||new Array(12).fill(0))[mo-1]=v; });
+        if(means.historical && means.ssp245 && means.ssp585){ render(deriveMetrics(means)); return; }
+      }catch(e){ /* try next */ }
+    }
+  })();
+
+  window.addEventListener("resize", ()=>{ if(lastMet) render(lastMet); });
+}
+initScene6Choice();

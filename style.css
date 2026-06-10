@@ -713,6 +713,25 @@ body {
 #scene5-tip .r b{color:var(--text);font-weight:500;}
 @media (max-width:720px){#scene-5{padding:4.5rem 1.5rem;}.scene5-inner{gap:32px;}}
 
+/* ===== Scene 6 — The Choice (dumbbell) ===== */
+#scene-6-choice{max-width:1200px;margin:0 auto;padding:7rem 2rem;border-top:1px solid var(--rule);}
+.s6c-inner{display:flex;gap:56px;align-items:center;flex-wrap:wrap;}
+.s6c-text{flex:0 0 300px;max-width:320px;}
+.s6c-tag{font-family:'IBM Plex Mono',monospace;font-size:0.72rem;letter-spacing:0.16em;text-transform:uppercase;color:var(--text-dim);margin-bottom:1.1rem;}
+.s6c-head{font-family:'Playfair Display',serif;font-weight:400;font-size:clamp(1.5rem,2.6vw,2rem);line-height:1.22;color:var(--text);margin-bottom:1rem;}
+.s6c-desc{font-size:0.98rem;color:var(--text-dim);line-height:1.65;font-weight:300;}
+.s6c-desc strong{color:var(--text);font-weight:400;}
+.s6c-source{font-family:'IBM Plex Mono',monospace;font-size:0.66rem;line-height:1.55;color:var(--text-dim);margin-top:1.5rem;padding-left:0.8rem;border-left:2px solid var(--rule);}
+.s6c-source code{font-family:'IBM Plex Mono',monospace;}
+.s6c-chart-wrap{flex:1 1 600px;min-width:0;}
+.s6c-chart-subtitle{font-family:'IBM Plex Mono',monospace;font-size:0.7rem;color:var(--text-dim);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:1.2rem;}
+#scene-6-choice svg{width:100%;display:block;overflow:visible;}
+.s6c-ax{font-family:'IBM Plex Mono',monospace;font-size:11px;fill:var(--text-dim);}
+.s6c-val{font-family:'IBM Plex Mono',monospace;font-weight:500;}
+.s6c-scen{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.04em;}
+.s6c-mname{font-family:'IBM Plex Sans',sans-serif;}
+@media (max-width:760px){#scene-6-choice{padding:4.5rem 1.5rem;}.s6c-inner{gap:32px;}.s6c-text{flex:1 1 100%;max-width:none;}}
+
 /* ============================================================ */
 /* SCENE 4 · Zoom Out: The Sierra Water Network                 */
 /* ============================================================ */
